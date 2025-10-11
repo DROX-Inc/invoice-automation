@@ -63,8 +63,7 @@ function createInvoices() {
   const dataSheet = dataSpreadsheet.getSheetByName(DATA_SHEET_NAME);
 
   if (!dataSheet) {
-    SpreadsheetApp.getUi().alert(`Data sheet "${DATA_SHEET_NAME}" not found.`);
-
+    console.error(`Data sheet "${DATA_SHEET_NAME}" not found.`);
     return;
   }
 
@@ -73,8 +72,7 @@ function createInvoices() {
   const templateSheet = templateSpreadsheet.getSheetByName(TEMPLATE_SHEET_NAME);
 
   if (!templateSheet) {
-    SpreadsheetApp.getUi().alert(`Template sheet "${TEMPLATE_SHEET_NAME}" not found.`);
-
+    console.error(`Template sheet "${TEMPLATE_SHEET_NAME}" not found.`);
     return;
   }
 
@@ -82,9 +80,18 @@ function createInvoices() {
 
   const data = dataSheet.getDataRange().getValues(); // Exclude header row (row 1) and start processing from row 2
 
-  const invoiceDataRows = data.slice(1); // --- Process invoice data row by row ---
+  const invoiceDataRows = data.slice(1);
 
-  invoiceDataRows.forEach((row) => {
+  // Track success and failure counts
+  let successCount = 0;
+  let failureCount = 0;
+  let skippedCount = 0;
+
+  console.log(`Starting invoice generation for ${invoiceDataRows.length} row(s)...`);
+
+  // --- Process invoice data row by row ---
+
+  invoiceDataRows.forEach((row, index) => {
     // Store data from columns A to F in respective variables
 
     const [
@@ -97,6 +104,8 @@ function createInvoices() {
     ] = row; // Skip rows where company name is empty
 
     if (!companyName) {
+      skippedCount++;
+      console.log(`Row ${index + 2}: Skipped (no company name)`);
       return;
     } // --- Invoice creation process --- // 1. Copy template sheet to create a working sheet // Working sheet is created in the data spreadsheet
 
@@ -122,16 +131,23 @@ function createInvoices() {
 
     try {
       createPdfInDrive(dataSpreadsheet, copiedSheet.getSheetId(), outputFolder, pdfFileName);
-
-      console.log(`Created ${pdfFileName}.pdf`);
+      successCount++;
+      console.log(`Row ${index + 2}: Successfully created ${pdfFileName}.pdf`);
     } catch (e) {
-      console.error(`Error creating ${pdfFileName}.pdf: ${e.message}`);
+      failureCount++;
+      console.error(`Row ${index + 2}: Error creating ${pdfFileName}.pdf - ${e.message}`);
     } // 5. Delete the temporary working sheet
 
     dataSpreadsheet.deleteSheet(copiedSheet);
   });
 
-  SpreadsheetApp.getUi().alert("All invoice PDFs have been created successfully.");
+  // Log completion summary
+  console.log("\n=== Invoice Generation Complete ===");
+  console.log(`Total rows processed: ${invoiceDataRows.length}`);
+  console.log(`✓ Successful: ${successCount}`);
+  console.log(`✗ Failed: ${failureCount}`);
+  console.log(`⊘ Skipped: ${skippedCount}`);
+  console.log("===================================");
 }
 
 /**
