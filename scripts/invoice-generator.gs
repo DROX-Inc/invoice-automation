@@ -1,18 +1,18 @@
 /**
  * Google Apps Script - Invoice PDF Generator
  *
- * This script automatically generates invoice PDFs from spreadsheet data.
+ * This script automatically generates invoice PDFs from hardcoded data.
  *
  * Features:
- * - Header-based data mapping (column order independent)
+ * - Easy-to-edit hardcoded invoice data
  * - Automatic date formatting
  * - Batch processing
  * - Error handling
  *
  * Setup Instructions:
- * 1. Update the configuration section below with your IDs
- * 2. Ensure your data spreadsheet has headers in Row 1
- * 3. Use {{header_name}} placeholders in your template
+ * 1. Update INVOICE_DATA array with your invoice information
+ * 2. Update TEMPLATE_SPREADSHEET_ID and OUTPUT_FOLDER_ID with your IDs
+ * 3. Ensure your template uses {{header_name}} placeholders
  * 4. Run createInvoices() function
  */
 
@@ -22,10 +22,14 @@
 // ============================================================================
 
 /**
- * Spreadsheet ID containing invoice data
- * Find it in the URL: https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit
+ * Invoice data array
+ * Each row contains: [請求日, 請求書番号, 会社名, 件名, 金額, PDFファイル名]
+ * You can easily add or modify invoice data here
  */
-const DATA_SPREADSHEET_ID = "YOUR_DATA_SPREADSHEET_ID";
+const INVOICE_DATA = [
+  ["2025/10/01", "INV-001", "A株式会社", "〇〇システム開発費", 100000, "20251001_A株式会社様"],
+  ["2025/10/02", "INV-002", "B商事", "△△デザイン制作費", 50000, "20251002_B商事様"]
+];
 
 /**
  * Spreadsheet ID containing invoice template
@@ -40,12 +44,6 @@ const TEMPLATE_SPREADSHEET_ID = "YOUR_TEMPLATE_SPREADSHEET_ID";
 const OUTPUT_FOLDER_ID = "YOUR_DRIVE_FOLDER_ID";
 
 /**
- * Name of the sheet containing invoice data in the data spreadsheet
- * Default is usually 'Sheet1'
- */
-const DATA_SHEET_NAME = "Sheet1";
-
-/**
  * Name of the sheet containing the invoice template
  * Default is usually 'Sheet1'
  */
@@ -56,16 +54,7 @@ const TEMPLATE_SHEET_NAME = "Sheet1";
 // ============================================================================
 
 function createInvoices() {
-  // --- Get spreadsheets and folder ---
-
-  const dataSpreadsheet = SpreadsheetApp.openById(DATA_SPREADSHEET_ID);
-
-  const dataSheet = dataSpreadsheet.getSheetByName(DATA_SHEET_NAME);
-
-  if (!dataSheet) {
-    console.error(`Data sheet "${DATA_SHEET_NAME}" not found.`);
-    return;
-  }
+  // --- Get template spreadsheet and output folder ---
 
   const templateSpreadsheet = SpreadsheetApp.openById(TEMPLATE_SPREADSHEET_ID);
 
@@ -76,11 +65,10 @@ function createInvoices() {
     return;
   }
 
-  const outputFolder = DriveApp.getFolderById(OUTPUT_FOLDER_ID); // --- Get invoice data from data sheet --- // getValues() retrieves all sheet data as a 2D array
+  const outputFolder = DriveApp.getFolderById(OUTPUT_FOLDER_ID);
 
-  const data = dataSheet.getDataRange().getValues(); // Exclude header row (row 1) and start processing from row 2
-
-  const invoiceDataRows = data.slice(1);
+  // --- Use hardcoded invoice data ---
+  const invoiceDataRows = INVOICE_DATA;
 
   // Track success and failure counts
   let successCount = 0;
@@ -105,11 +93,11 @@ function createInvoices() {
 
     if (!companyName) {
       skippedCount++;
-      console.log(`Row ${index + 2}: Skipped (no company name)`);
+      console.log(`Row ${index + 1}: Skipped (no company name)`);
       return;
-    } // --- Invoice creation process --- // 1. Copy template sheet to create a working sheet // Working sheet is created in the data spreadsheet
+    } // --- Invoice creation process --- // 1. Copy template sheet to create a working sheet // Working sheet is created in the template spreadsheet
 
-    const copiedSheet = templateSheet.copyTo(dataSpreadsheet);
+    const copiedSheet = templateSheet.copyTo(templateSpreadsheet);
 
     const newSheetName = `temp_${invoiceNumber}`; // Temporary sheet name
 
@@ -130,15 +118,15 @@ function createInvoices() {
     SpreadsheetApp.flush(); // 4. Create PDF and save to Google Drive
 
     try {
-      createPdfInDrive(dataSpreadsheet, copiedSheet.getSheetId(), outputFolder, pdfFileName);
+      createPdfInDrive(templateSpreadsheet, copiedSheet.getSheetId(), outputFolder, pdfFileName);
       successCount++;
-      console.log(`Row ${index + 2}: Successfully created ${pdfFileName}.pdf`);
+      console.log(`Row ${index + 1}: Successfully created ${pdfFileName}.pdf`);
     } catch (e) {
       failureCount++;
-      console.error(`Row ${index + 2}: Error creating ${pdfFileName}.pdf - ${e.message}`);
+      console.error(`Row ${index + 1}: Error creating ${pdfFileName}.pdf - ${e.message}`);
     } // 5. Delete the temporary working sheet
 
-    dataSpreadsheet.deleteSheet(copiedSheet);
+    templateSpreadsheet.deleteSheet(copiedSheet);
   });
 
   // Log completion summary
