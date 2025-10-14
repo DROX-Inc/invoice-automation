@@ -1,0 +1,3 @@
+invoice_date,seller_name,seller_address,seller_phone_number,item_1_name,item_1_number,item_1_price,seller_bank_name,seller_bank_type,seller_bank_number,seller_bank_holder_name,pdfFileName
+2025/11/01,株式会社サンプル商事,東京都渋谷区サンプル町1-2-3 サンプルビル4階,03-1234-5678,Webシステム開発費,1,150000,サンプル銀行 東京支店(123),普通,1234567,株式会社サンプル商事,20251101_株式会社DROX様_請求書
+2025/11/15,株式会社サンプル商事,東京都渋谷区サンプル町1-2-3 サンプルビル4階,03-1234-5678,UIデザイン制作費,2,75000,サンプル銀行 東京支店(123),普通,1234567,株式会社サンプル商事,20251115_株式会社DROX様_請求書

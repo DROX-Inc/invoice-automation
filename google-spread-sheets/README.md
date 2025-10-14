@@ -4,10 +4,32 @@
 
 This directory contains the Google Sheets invoice template used to generate PDF invoices.
 
-## Template Files
+## Files in This Directory
 
-- **File**: `invoice-template.csv` - Current template with dynamic seller information
-- **File**: `invoice-template-old.csv` - Previous template version for reference
+- **invoice-data.csv** - Sample invoice data structure for the data spreadsheet
+- **invoice-template.csv** - Invoice template with placeholders
+- **invoice-template-old.csv** - Previous template version for reference (archived)
+
+## Invoice Data Structure
+
+The `invoice-data.csv` file shows the structure for your data spreadsheet. Your data spreadsheet should have these columns (in any order):
+
+| Column Name | Description | Example |
+|------------|-------------|---------|
+| invoice_date | Invoice date | 2025/11/01 |
+| seller_name | Seller company name | 株式会社サンプル商事 |
+| seller_address | Seller address | 東京都渋谷区サンプル町1-2-3 |
+| seller_phone_number | Seller phone | 03-1234-5678 |
+| item_1_name | Item description | Webシステム開発費 |
+| item_1_number | Item quantity | 1 |
+| item_1_price | Item price | 150000 |
+| seller_bank_name | Bank name | サンプル銀行 東京支店(123) |
+| seller_bank_type | Account type | 普通 |
+| seller_bank_number | Account number | 1234567 |
+| seller_bank_holder_name | Account holder | 株式会社サンプル商事 |
+| pdfFileName | PDF filename | 20251101_株式会社DROX様_請求書 |
+
+**Important**: The first row must contain these exact column names (headers). The script uses header-based mapping, so column order doesn't matter.
 
 ## Template Placeholders
 

@@ -1,18 +1,19 @@
 /**
  * Google Apps Script - Invoice PDF Generator
  *
- * This script automatically generates invoice PDFs from hardcoded data.
+ * This script automatically generates invoice PDFs from Google Sheets data.
  *
  * Features:
- * - Easy-to-edit hardcoded invoice data
+ * - Header-based data mapping (column order independent)
  * - Automatic date formatting
  * - Batch processing
  * - Error handling
+ * - Dynamic seller information support
  *
  * Setup Instructions:
- * 1. Update INVOICE_DATA array with your invoice information
- * 2. Update TEMPLATE_SPREADSHEET_ID and OUTPUT_FOLDER_ID with your IDs
- * 3. Ensure your template uses {{header_name}} placeholders
+ * 1. Create a data spreadsheet with invoice information (see invoice-data.csv for structure)
+ * 2. Create a template spreadsheet with placeholders (see invoice-template.csv)
+ * 3. Update DATA_SPREADSHEET_ID, TEMPLATE_SPREADSHEET_ID, and OUTPUT_FOLDER_ID
  * 4. Run createInvoices() function
  */
 
@@ -22,8 +23,10 @@
 // ============================================================================
 
 /**
- * Invoice data array
- * Each invoice is an object with the following properties:
+ * Spreadsheet ID containing invoice data
+ * Find it in the URL: https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit
+ *
+ * The data spreadsheet should have the following columns (in any order):
  * - invoice_date: Invoice date
  * - seller_name: Seller company name
  * - seller_address: Seller address
@@ -37,36 +40,13 @@
  * - seller_bank_holder_name: Account holder name
  * - pdfFileName: PDF filename (without extension)
  */
-const INVOICE_DATA = [
-  {
-    invoice_date: "2025/11/01",
-    seller_name: "株式会社サンプル商事",
-    seller_address: "東京都渋谷区サンプル町1-2-3 サンプルビル4階",
-    seller_phone_number: "03-1234-5678",
-    item_1_name: "Webシステム開発費",
-    item_1_number: 1,
-    item_1_price: 150000,
-    seller_bank_name: "サンプル銀行 東京支店(123)",
-    seller_bank_type: "普通",
-    seller_bank_number: "1234567",
-    seller_bank_holder_name: "株式会社サンプル商事",
-    pdfFileName: "20251101_株式会社DROX様_請求書"
-  },
-  {
-    invoice_date: "2025/11/15",
-    seller_name: "株式会社サンプル商事",
-    seller_address: "東京都渋谷区サンプル町1-2-3 サンプルビル4階",
-    seller_phone_number: "03-1234-5678",
-    item_1_name: "UIデザイン制作費",
-    item_1_number: 2,
-    item_1_price: 75000,
-    seller_bank_name: "サンプル銀行 東京支店(123)",
-    seller_bank_type: "普通",
-    seller_bank_number: "1234567",
-    seller_bank_holder_name: "株式会社サンプル商事",
-    pdfFileName: "20251115_株式会社DROX様_請求書"
-  }
-];
+const DATA_SPREADSHEET_ID = "YOUR_DATA_SPREADSHEET_ID";
+
+/**
+ * Name of the sheet containing invoice data in the data spreadsheet
+ * Default is usually 'Sheet1'
+ */
+const DATA_SHEET_NAME = "Sheet1";
 
 /**
  * Spreadsheet ID containing invoice template
@@ -91,10 +71,17 @@ const TEMPLATE_SHEET_NAME = "Sheet1";
 // ============================================================================
 
 function createInvoices() {
-  // --- Get template spreadsheet and output folder ---
+  // --- Get data spreadsheet, template spreadsheet, and output folder ---
+
+  const dataSpreadsheet = SpreadsheetApp.openById(DATA_SPREADSHEET_ID);
+  const dataSheet = dataSpreadsheet.getSheetByName(DATA_SHEET_NAME);
+
+  if (!dataSheet) {
+    console.error(`Data sheet "${DATA_SHEET_NAME}" not found.`);
+    return;
+  }
 
   const templateSpreadsheet = SpreadsheetApp.openById(TEMPLATE_SPREADSHEET_ID);
-
   const templateSheet = templateSpreadsheet.getSheetByName(TEMPLATE_SHEET_NAME);
 
   if (!templateSheet) {
@@ -104,8 +91,21 @@ function createInvoices() {
 
   const outputFolder = DriveApp.getFolderById(OUTPUT_FOLDER_ID);
 
-  // --- Use hardcoded invoice data ---
-  const invoiceDataRows = INVOICE_DATA;
+  // --- Read invoice data from spreadsheet ---
+  const data = dataSheet.getDataRange().getValues();
+
+  // First row contains headers
+  const headers = data[0];
+  const dataRows = data.slice(1);
+
+  // Convert rows to invoice objects based on headers
+  const invoiceDataRows = dataRows.map(row => {
+    const invoice = {};
+    headers.forEach((header, index) => {
+      invoice[header] = row[index];
+    });
+    return invoice;
+  });
 
   // Track success and failure counts
   let successCount = 0;
