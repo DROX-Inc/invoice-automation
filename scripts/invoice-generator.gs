@@ -23,12 +23,49 @@
 
 /**
  * Invoice data array
- * Each row contains: [請求日, 請求書番号, 会社名, 件名, 金額, PDFファイル名]
- * You can easily add or modify invoice data here
+ * Each invoice is an object with the following properties:
+ * - invoice_date: Invoice date
+ * - seller_name: Seller company name
+ * - seller_address: Seller address
+ * - seller_phone_number: Seller phone
+ * - item_1_name: Item description
+ * - item_1_number: Item quantity
+ * - item_1_price: Item price
+ * - seller_bank_name: Bank name
+ * - seller_bank_type: Account type
+ * - seller_bank_number: Account number
+ * - seller_bank_holder_name: Account holder name
+ * - pdfFileName: PDF filename (without extension)
  */
 const INVOICE_DATA = [
-  ["2025/10/01", "INV-001", "A株式会社", "〇〇システム開発費", 100000, "20251001_A株式会社様"],
-  ["2025/10/02", "INV-002", "B商事", "△△デザイン制作費", 50000, "20251002_B商事様"]
+  {
+    invoice_date: "2025/11/01",
+    seller_name: "株式会社サンプル商事",
+    seller_address: "東京都渋谷区サンプル町1-2-3 サンプルビル4階",
+    seller_phone_number: "03-1234-5678",
+    item_1_name: "Webシステム開発費",
+    item_1_number: 1,
+    item_1_price: 150000,
+    seller_bank_name: "サンプル銀行 東京支店(123)",
+    seller_bank_type: "普通",
+    seller_bank_number: "1234567",
+    seller_bank_holder_name: "株式会社サンプル商事",
+    pdfFileName: "20251101_株式会社DROX様_請求書"
+  },
+  {
+    invoice_date: "2025/11/15",
+    seller_name: "株式会社サンプル商事",
+    seller_address: "東京都渋谷区サンプル町1-2-3 サンプルビル4階",
+    seller_phone_number: "03-1234-5678",
+    item_1_name: "UIデザイン制作費",
+    item_1_number: 2,
+    item_1_price: 75000,
+    seller_bank_name: "サンプル銀行 東京支店(123)",
+    seller_bank_type: "普通",
+    seller_bank_number: "1234567",
+    seller_bank_holder_name: "株式会社サンプル商事",
+    pdfFileName: "20251115_株式会社DROX様_請求書"
+  }
 ];
 
 /**
@@ -79,52 +116,64 @@ function createInvoices() {
 
   // --- Process invoice data row by row ---
 
-  invoiceDataRows.forEach((row, index) => {
-    // Store data from columns A to F in respective variables
-
-    const [
-      invoiceDate, // Invoice Date (Column A)
-      invoiceNumber, // Invoice Number (Column B)
-      companyName, // Company Name (Column C)
-      subject, // Subject (Column D)
-      amount, // Amount (Column E)
-      pdfFileName, // PDF Filename (Column F)
-    ] = row; // Skip rows where company name is empty
-
-    if (!companyName) {
+  invoiceDataRows.forEach((invoice, index) => {
+    // Skip invoices without required data
+    if (!invoice.pdfFileName) {
       skippedCount++;
-      console.log(`Row ${index + 1}: Skipped (no company name)`);
+      console.log(`Invoice ${index + 1}: Skipped (no PDF filename)`);
       return;
-    } // --- Invoice creation process --- // 1. Copy template sheet to create a working sheet // Working sheet is created in the template spreadsheet
+    }
+
+    // --- Invoice creation process ---
+    // 1. Copy template sheet to create a working sheet
+    // Working sheet is created in the template spreadsheet
 
     const copiedSheet = templateSheet.copyTo(templateSpreadsheet);
 
-    const newSheetName = `temp_${invoiceNumber}`; // Temporary sheet name
+    const newSheetName = `temp_${index + 1}`; // Temporary sheet name
 
-    copiedSheet.setName(newSheetName); // 2. Replace placeholders with actual data // Format date to 'yyyy/MM/dd' format
+    copiedSheet.setName(newSheetName);
 
-    const formattedDate = Utilities.formatDate(new Date(invoiceDate), "JST", "yyyy/MM/dd");
+    // 2. Replace placeholders with actual data
+    // Format date to 'yyyy/MM/dd' format
 
-    copiedSheet.createTextFinder("{{請求日}}").replaceAllWith(formattedDate);
+    const formattedDate = Utilities.formatDate(new Date(invoice.invoice_date), "JST", "yyyy/MM/dd");
 
-    copiedSheet.createTextFinder("{{請求書番号}}").replaceAllWith(invoiceNumber);
+    // Replace invoice details
+    copiedSheet.createTextFinder("{{invoice_date}}").replaceAllWith(formattedDate);
 
-    copiedSheet.createTextFinder("{{会社名}}").replaceAllWith(companyName);
+    // Replace seller information
+    copiedSheet.createTextFinder("{{seller_name}}").replaceAllWith(invoice.seller_name);
+    copiedSheet.createTextFinder("{{seller_address}}").replaceAllWith(invoice.seller_address);
+    copiedSheet.createTextFinder("{{seller_phone_number}}").replaceAllWith(invoice.seller_phone_number);
 
-    copiedSheet.createTextFinder("{{件名}}").replaceAllWith(subject); // Amount is transferred as a number (template formatting will be applied)
+    // Replace item details
+    copiedSheet.createTextFinder("{{item_1_name}}").replaceAllWith(invoice.item_1_name);
+    copiedSheet.createTextFinder("{{item_1_number}}").replaceAllWith(invoice.item_1_number);
+    copiedSheet.createTextFinder("{{item_1_price}}").replaceAllWith(invoice.item_1_price);
 
-    copiedSheet.createTextFinder("{{金額}}").replaceAllWith(amount); // 3. Flush changes to spreadsheet immediately
+    // Replace bank information
+    copiedSheet.createTextFinder("{{seller_bank_name}}").replaceAllWith(invoice.seller_bank_name);
+    copiedSheet.createTextFinder("{{seller_bank_type}}").replaceAllWith(invoice.seller_bank_type);
+    copiedSheet.createTextFinder("{{seller_bank_number}}").replaceAllWith(invoice.seller_bank_number);
+    copiedSheet.createTextFinder("{{seller_bank_holder_name}}").replaceAllWith(invoice.seller_bank_holder_name);
 
-    SpreadsheetApp.flush(); // 4. Create PDF and save to Google Drive
+    // 3. Flush changes to spreadsheet immediately
+
+    SpreadsheetApp.flush();
+
+    // 4. Create PDF and save to Google Drive
 
     try {
-      createPdfInDrive(templateSpreadsheet, copiedSheet.getSheetId(), outputFolder, pdfFileName);
+      createPdfInDrive(templateSpreadsheet, copiedSheet.getSheetId(), outputFolder, invoice.pdfFileName);
       successCount++;
-      console.log(`Row ${index + 1}: Successfully created ${pdfFileName}.pdf`);
+      console.log(`Invoice ${index + 1}: Successfully created ${invoice.pdfFileName}.pdf`);
     } catch (e) {
       failureCount++;
-      console.error(`Row ${index + 1}: Error creating ${pdfFileName}.pdf - ${e.message}`);
-    } // 5. Delete the temporary working sheet
+      console.error(`Invoice ${index + 1}: Error creating ${invoice.pdfFileName}.pdf - ${e.message}`);
+    }
+
+    // 5. Delete the temporary working sheet
 
     templateSpreadsheet.deleteSheet(copiedSheet);
   });

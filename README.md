@@ -1,10 +1,10 @@
 # Invoice Automation with Google Apps Script
 
-Automatically generate invoice PDFs from Google Sheets data using Google Apps Script. This project provides a flexible, header-based system that maps spreadsheet data to invoice templates and generates professional PDF invoices.
+Automatically generate invoice PDFs from hardcoded data using Google Apps Script. This project provides a simple, easy-to-edit system that generates professional PDF invoices from a template spreadsheet.
 
 ## Features
 
-- **Header-Based Mapping**: Column order doesn't matter - uses header names to map data
+- **Easy-to-Edit Data**: Invoice data stored directly in the script as an array
 - **Batch Processing**: Generate multiple invoices in a single execution
 - **Automatic Date Formatting**: Properly formats date values
 - **Error Handling**: Skips rows with missing critical data
@@ -13,15 +13,15 @@ Automatically generate invoice PDFs from Google Sheets data using Google Apps Sc
 
 ## Quick Start
 
-1. **Prepare Your Spreadsheets**
-   - Create a data spreadsheet with invoice information
-   - Create a template spreadsheet with your invoice design
-   - Create a Google Drive folder for PDFs
+1. **Prepare Your Resources**
+   - Create a template spreadsheet with your invoice design (see `google-spread-sheets/invoice-template.csv` for reference)
+   - Create a Google Drive folder for generated PDFs
 
 2. **Set Up the Script**
-   - Open Apps Script from your data spreadsheet
+   - Open Google Apps Script editor
    - Copy the script from `scripts/invoice-generator.gs`
-   - Update the configuration with your IDs
+   - Update `INVOICE_DATA` array with your invoice information
+   - Update `TEMPLATE_SPREADSHEET_ID` and `OUTPUT_FOLDER_ID` with your IDs
 
 3. **Run the Script**
    - Execute `createInvoices()` function
@@ -30,17 +30,22 @@ Automatically generate invoice PDFs from Google Sheets data using Google Apps Sc
 
 ## Documentation
 
-📖 **[Complete Setup Guide](docs/SETUP_GUIDE.md)** - Detailed step-by-step instructions
+- 📖 **[Complete Setup Guide](docs/SETUP_GUIDE.md)** - Detailed step-by-step instructions
+- 📋 **[Template Reference](google-spread-sheets/README.md)** - Invoice template documentation and structure
 
 ## Project Structure
 
 ```
 invoice-automation/
-├── README.md                    # This file
+├── README.md                           # This file
 ├── docs/
-│   └── SETUP_GUIDE.md          # Comprehensive setup instructions
+│   ├── SETUP_GUIDE.md                 # Comprehensive setup instructions
+│   └── QUICK_REFERENCE.md             # Quick reference guide
+├── google-spread-sheets/
+│   ├── README.md                      # Template documentation
+│   └── invoice-template.csv           # Template structure reference
 └── scripts/
-    └── invoice-generator.gs     # Main Google Apps Script code
+    └── invoice-generator.gs            # Main Google Apps Script code
 ```
 
 ## Requirements
@@ -52,30 +57,53 @@ invoice-automation/
 
 ## Example Data Structure
 
-**Data Spreadsheet (Row 1 = Headers):**
+**INVOICE_DATA Array in Script:**
 
-| Invoice Date | Invoice Number | Company Name | Description | Amount | PDF Filename |
-|--------------|----------------|--------------|-------------|--------|--------------|
-| 2025/10/01   | INV-001        | ABC Corp     | Web Dev     | 100000 | 20251001_ABC |
-| 2025/10/02   | INV-002        | XYZ Ltd      | Design      | 50000  | 20251002_XYZ |
+```javascript
+const INVOICE_DATA = [
+  {
+    invoice_date: "2025/11/01",
+    seller_name: "株式会社サンプル商事",
+    seller_address: "東京都渋谷区サンプル町1-2-3 サンプルビル4階",
+    seller_phone_number: "03-1234-5678",
+    item_1_name: "Webシステム開発費",
+    item_1_number: 1,
+    item_1_price: 150000,
+    seller_bank_name: "サンプル銀行 東京支店(123)",
+    seller_bank_type: "普通",
+    seller_bank_number: "1234567",
+    seller_bank_holder_name: "株式会社サンプル商事",
+    pdfFileName: "20251101_株式会社DROX様_請求書"
+  }
+];
+```
 
 **Template Spreadsheet (with placeholders):**
 
 ```
-INVOICE
+請求書 (INVOICE)
 
-{{Company Name}}                           Invoice #: {{Invoice Number}}
-Date: {{Invoice Date}}
+株式会社 DROX 御中
+Date: {{invoice_date}}
 
-Description: {{Description}}
-Amount: {{Amount}}
+Seller: {{seller_name}}
+Address: {{seller_address}}
+Phone: {{seller_phone_number}}
+
+Item: {{item_1_name}}
+Quantity: {{item_1_number}}
+Price: {{item_1_price}}
+
+Bank: {{seller_bank_name}}
 ```
+
+See [Template Reference](google-spread-sheets/README.md) for complete template structure.
 
 ## How It Works
 
-1. Script reads data from your spreadsheet using header names
-2. For each row, creates a copy of the template
-3. Replaces `{{header_name}}` placeholders with actual data
+1. Script reads invoice data from the `INVOICE_DATA` array
+2. For each invoice entry, creates a copy of the template sheet
+3. Replaces `{{placeholder}}` values with actual data
 4. Converts the populated sheet to PDF
 5. Saves PDF to specified Google Drive folder
 6. Cleans up temporary working sheets
@@ -85,19 +113,49 @@ Amount: {{Amount}}
 Update these values in the script:
 
 ```javascript
-const DATA_SPREADSHEET_ID = 'your-data-spreadsheet-id';
+// Add your invoice data here
+const INVOICE_DATA = [
+  {
+    invoice_date: "2025/11/01",
+    seller_name: "株式会社サンプル商事",
+    seller_address: "東京都渋谷区サンプル町1-2-3 サンプルビル4階",
+    seller_phone_number: "03-1234-5678",
+    item_1_name: "Webシステム開発費",
+    item_1_number: 1,
+    item_1_price: 150000,
+    seller_bank_name: "サンプル銀行 東京支店(123)",
+    seller_bank_type: "普通",
+    seller_bank_number: "1234567",
+    seller_bank_holder_name: "株式会社サンプル商事",
+    pdfFileName: "20251101_株式会社DROX様_請求書"
+  }
+];
+
 const TEMPLATE_SPREADSHEET_ID = 'your-template-spreadsheet-id';
 const OUTPUT_FOLDER_ID = 'your-drive-folder-id';
-const DATA_SHEET_NAME = 'Sheet1';
 const TEMPLATE_SHEET_NAME = 'Sheet1';
 ```
 
-## Testing Functions
+## Adding New Invoices
 
-The script includes helpful testing functions:
+Simply add new invoice objects to the `INVOICE_DATA` array:
 
-- `testConfiguration()` - Verify all IDs are correct
-- `testFirstInvoice()` - Test with just the first row of data
+```javascript
+const INVOICE_DATA = [
+  {
+    invoice_date: "2025/11/01",
+    seller_name: "株式会社サンプル商事",
+    // ... other fields ...
+    pdfFileName: "20251101_株式会社DROX様_請求書"
+  },
+  {
+    invoice_date: "2025/11/15",
+    seller_name: "株式会社サンプル商事",
+    // ... other fields ...
+    pdfFileName: "20251115_株式会社DROX様_請求書"
+  }
+];
+```
 
 ## Troubleshooting
 
