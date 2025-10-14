@@ -16,7 +16,6 @@ The `invoice-data.csv` file shows the structure for your data spreadsheet. Your 
 
 | Column Name | Description | Example |
 |------------|-------------|---------|
-| invoice_date | Invoice date | 2025/11/01 |
 | seller_name | Seller company name | 株式会社サンプル商事 |
 | seller_address | Seller address | 東京都渋谷区サンプル町1-2-3 |
 | seller_phone_number | Seller phone | 03-1234-5678 |
@@ -27,9 +26,14 @@ The `invoice-data.csv` file shows the structure for your data spreadsheet. Your 
 | seller_bank_type | Account type | 普通 |
 | seller_bank_number | Account number | 1234567 |
 | seller_bank_holder_name | Account holder | 株式会社サンプル商事 |
-| pdfFileName | PDF filename | 20251101_株式会社DROX様_請求書 |
+| output_folder_id | **(MANDATORY)** Google Drive Folder ID for saving this invoice | 14iWEOIgVM6iX6NCGn5CP1MLU22ykiTYQ |
 
-**Important**: The first row must contain these exact column names (headers). The script uses header-based mapping, so column order doesn't matter.
+**Important**:
+- The first row must contain these exact column names (headers). The script uses header-based mapping, so column order doesn't matter.
+- The `output_folder_id` field is **mandatory**. If blank or invalid, the invoice will be skipped with an error logged.
+- Invoice date and PDF filename are automatically generated:
+  - Invoice date: Current date when generating the PDF
+  - PDF filename format: `YYYYMMDD_株式会社DROX様_請求書.pdf` (e.g., `20251014_株式会社DROX様_請求書.pdf`)
 
 ## Template Placeholders
 
@@ -38,7 +42,7 @@ The template uses the following placeholders that get replaced with actual invoi
 ### Invoice Details
 | Placeholder | Description | Example Value |
 |------------|-------------|---------------|
-| `{{invoice_date}}` | Invoice date | 2025/10/01 |
+| `{{invoice_date}}` | Invoice date (automatically set to current date) | 2025/10/01 |
 
 ### Seller Information
 | Placeholder | Description | Example Value |

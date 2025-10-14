@@ -27,7 +27,6 @@
  * Find it in the URL: https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit
  *
  * The data spreadsheet should have the following columns (in any order):
- * - invoice_date: Invoice date
  * - seller_name: Seller company name
  * - seller_address: Seller address
  * - seller_phone_number: Seller phone
@@ -38,7 +37,10 @@
  * - seller_bank_type: Account type
  * - seller_bank_number: Account number
  * - seller_bank_holder_name: Account holder name
- * - pdfFileName: PDF filename (without extension)
+ * - output_folder_id: (MANDATORY) Google Drive Folder ID for this invoice
+ *
+ * Note: Invoice date and PDF filename are automatically generated when creating the PDF
+ * PDF filename format: YYYYMMDD_株式会社DROX様_請求書.pdf
  */
 const DATA_SPREADSHEET_ID = "YOUR_DATA_SPREADSHEET_ID";
 
@@ -53,12 +55,6 @@ const DATA_SHEET_NAME = "Sheet1";
  * Find it in the URL: https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit
  */
 const TEMPLATE_SPREADSHEET_ID = "YOUR_TEMPLATE_SPREADSHEET_ID";
-
-/**
- * Google Drive Folder ID where PDFs will be saved
- * Find it in the URL: https://drive.google.com/drive/folders/FOLDER_ID
- */
-const OUTPUT_FOLDER_ID = "YOUR_DRIVE_FOLDER_ID";
 
 /**
  * Name of the sheet containing the invoice template
@@ -89,8 +85,6 @@ function createInvoices() {
     return;
   }
 
-  const outputFolder = DriveApp.getFolderById(OUTPUT_FOLDER_ID);
-
   // --- Read invoice data from spreadsheet ---
   const data = dataSheet.getDataRange().getValues();
 
@@ -117,13 +111,6 @@ function createInvoices() {
   // --- Process invoice data row by row ---
 
   invoiceDataRows.forEach((invoice, index) => {
-    // Skip invoices without required data
-    if (!invoice.pdfFileName) {
-      skippedCount++;
-      console.log(`Invoice ${index + 1}: Skipped (no PDF filename)`);
-      return;
-    }
-
     // --- Invoice creation process ---
     // 1. Copy template sheet to create a working sheet
     // Working sheet is created in the template spreadsheet
@@ -135,9 +122,11 @@ function createInvoices() {
     copiedSheet.setName(newSheetName);
 
     // 2. Replace placeholders with actual data
-    // Format date to 'yyyy/MM/dd' format
+    // Use current date and generate PDF filename
 
-    const formattedDate = Utilities.formatDate(new Date(invoice.invoice_date), "JST", "yyyy/MM/dd");
+    const currentDate = new Date();
+    const formattedDate = Utilities.formatDate(currentDate, "JST", "yyyy/MM/dd");
+    const pdfFileName = Utilities.formatDate(currentDate, "JST", "yyyyMMdd") + "_株式会社DROX様_請求書";
 
     // Replace invoice details
     copiedSheet.createTextFinder("{{invoice_date}}").replaceAllWith(formattedDate);
@@ -162,18 +151,38 @@ function createInvoices() {
 
     SpreadsheetApp.flush();
 
-    // 4. Create PDF and save to Google Drive
+    // 4. Validate and get output folder (MANDATORY)
 
-    try {
-      createPdfInDrive(templateSpreadsheet, copiedSheet.getSheetId(), outputFolder, invoice.pdfFileName);
-      successCount++;
-      console.log(`Invoice ${index + 1}: Successfully created ${invoice.pdfFileName}.pdf`);
-    } catch (e) {
+    if (!invoice.output_folder_id || invoice.output_folder_id.trim() === "") {
       failureCount++;
-      console.error(`Invoice ${index + 1}: Error creating ${invoice.pdfFileName}.pdf - ${e.message}`);
+      console.error(`Invoice ${index + 1}: Error - output_folder_id is required but not provided`);
+      templateSpreadsheet.deleteSheet(copiedSheet);
+      return;
     }
 
-    // 5. Delete the temporary working sheet
+    let targetFolder;
+    try {
+      targetFolder = DriveApp.getFolderById(invoice.output_folder_id);
+      console.log(`Invoice ${index + 1}: Using folder ID: ${invoice.output_folder_id}`);
+    } catch (e) {
+      failureCount++;
+      console.error(`Invoice ${index + 1}: Error - Invalid output_folder_id: ${invoice.output_folder_id}. ${e.message}`);
+      templateSpreadsheet.deleteSheet(copiedSheet);
+      return;
+    }
+
+    // 5. Create PDF and save to Google Drive
+
+    try {
+      createPdfInDrive(templateSpreadsheet, copiedSheet.getSheetId(), targetFolder, pdfFileName);
+      successCount++;
+      console.log(`Invoice ${index + 1}: Successfully created ${pdfFileName}.pdf`);
+    } catch (e) {
+      failureCount++;
+      console.error(`Invoice ${index + 1}: Error creating ${pdfFileName}.pdf - ${e.message}`);
+    }
+
+    // 6. Delete the temporary working sheet
 
     templateSpreadsheet.deleteSheet(copiedSheet);
   });
