@@ -18,7 +18,6 @@ The `invoice-data.csv` file shows the structure for your data spreadsheet. Your 
 |------------|-------------|---------|
 | seller_name | Seller company name | 株式会社サンプル商事 |
 | seller_address | Seller address | 東京都渋谷区サンプル町1-2-3 |
-| seller_phone_number | Seller phone | 03-1234-5678 |
 | item_1_name | Item description | Webシステム開発費 |
 | item_1_number | Item quantity | 1 |
 | item_1_price | Item price | 150000 |
@@ -49,7 +48,6 @@ The template uses the following placeholders that get replaced with actual invoi
 |------------|-------------|---------------|
 | `{{seller_name}}` | Seller company name | 株式会社サンプル商事 |
 | `{{seller_address}}` | Seller address | 東京都渋谷区サンプル町1-2-3 |
-| `{{seller_phone_number}}` | Seller phone | 03-1234-5678 |
 
 ### Item Details
 | Placeholder | Description | Example Value |
@@ -78,7 +76,6 @@ The template includes the following sections:
    - Issue date (発行日): `{{invoice_date}}`
    - Seller company: `{{seller_name}}`
    - Seller address: `{{seller_address}}`
-   - Seller phone: `{{seller_phone_number}}`
 
 3. **Items Table**
    - Line items (No. 1-9)

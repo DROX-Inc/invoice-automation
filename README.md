@@ -65,7 +65,6 @@ const INVOICE_DATA = [
     invoice_date: "2025/11/01",
     seller_name: "株式会社サンプル商事",
     seller_address: "東京都渋谷区サンプル町1-2-3 サンプルビル4階",
-    seller_phone_number: "03-1234-5678",
     item_1_name: "Webシステム開発費",
     item_1_number: 1,
     item_1_price: 150000,
@@ -88,7 +87,6 @@ Date: {{invoice_date}}
 
 Seller: {{seller_name}}
 Address: {{seller_address}}
-Phone: {{seller_phone_number}}
 
 Item: {{item_1_name}}
 Quantity: {{item_1_number}}
@@ -119,7 +117,6 @@ const INVOICE_DATA = [
     invoice_date: "2025/11/01",
     seller_name: "株式会社サンプル商事",
     seller_address: "東京都渋谷区サンプル町1-2-3 サンプルビル4階",
-    seller_phone_number: "03-1234-5678",
     item_1_name: "Webシステム開発費",
     item_1_number: 1,
     item_1_price: 150000,

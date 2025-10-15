@@ -29,7 +29,6 @@
  * The data spreadsheet should have the following columns (in any order):
  * - seller_name: Seller company name
  * - seller_address: Seller address
- * - seller_phone_number: Seller phone
  * - item_1_name: Item description
  * - item_1_number: Item quantity
  * - item_1_price: Item price
@@ -134,7 +133,6 @@ function createInvoices() {
     // Replace seller information
     copiedSheet.createTextFinder("{{seller_name}}").replaceAllWith(invoice.seller_name);
     copiedSheet.createTextFinder("{{seller_address}}").replaceAllWith(invoice.seller_address);
-    copiedSheet.createTextFinder("{{seller_phone_number}}").replaceAllWith(invoice.seller_phone_number);
 
     // Replace item details
     copiedSheet.createTextFinder("{{item_1_name}}").replaceAllWith(invoice.item_1_name);
