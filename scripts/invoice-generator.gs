@@ -62,6 +62,131 @@ const TEMPLATE_SPREADSHEET_ID = "YOUR_TEMPLATE_SPREADSHEET_ID";
 const TEMPLATE_SHEET_NAME = "Sheet1";
 
 // ============================================================================
+// NOTION API CONFIGURATION
+// ============================================================================
+
+/**
+ * Notion API Configuration
+ *
+ * To set up:
+ * 1. Create a Notion integration at https://www.notion.com/my-integrations
+ * 2. Copy the integration token (starts with "secret_")
+ * 3. Share your Notion database with the integration
+ * 4. Replace the values below with your actual credentials
+ */
+const NOTION_API_KEY = "YOUR_NOTION_INTEGRATION_TOKEN"; // Replace with your actual token
+const NOTION_DATABASE_ID = "25143e83afc180cfaa2bff97b74538eb";
+const NOTION_API_VERSION = "2022-06-28";
+
+// ============================================================================
+// NOTION API FUNCTIONS
+// ============================================================================
+
+/**
+ * Fetch hours from Notion database with date range filter
+ * Sums up all "hours" property values from entries within the specified date range
+ *
+ * @param {string} startDate - Start date in YYYY-MM-DD format (e.g., "2025-10-01")
+ * @param {string} endDate - End date in YYYY-MM-DD format (e.g., "2025-10-31")
+ * @returns {number} Total hours summed from matching Notion entries
+ */
+function fetchNotionHours(startDate, endDate) {
+  try {
+    console.log(`Fetching hours from Notion for period: ${startDate} to ${endDate}`);
+
+    const url = `https://api.notion.com/v1/databases/${NOTION_DATABASE_ID}/query`;
+
+    // Construct the filter for date range
+    const payload = {
+      filter: {
+        and: [
+          {
+            property: "Start Time",
+            date: {
+              on_or_after: startDate
+            }
+          },
+          {
+            property: "End Time",
+            date: {
+              on_or_before: endDate
+            }
+          }
+        ]
+      },
+      page_size: 100 // Maximum allowed by Notion API
+    };
+
+    const options = {
+      method: "post",
+      headers: {
+        "Authorization": `Bearer ${NOTION_API_KEY}`,
+        "Notion-Version": NOTION_API_VERSION,
+        "Content-Type": "application/json"
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+
+    let totalHours = 0;
+    let hasMore = true;
+    let nextCursor = null;
+
+    // Handle pagination if there are more than 100 results
+    while (hasMore) {
+      if (nextCursor) {
+        payload.start_cursor = nextCursor;
+        options.payload = JSON.stringify(payload);
+      }
+
+      const response = UrlFetchApp.fetch(url, options);
+      const responseCode = response.getResponseCode();
+
+      if (responseCode !== 200) {
+        console.error(`Notion API error: ${response.getContentText()}`);
+        throw new Error(`Notion API returned error code: ${responseCode}`);
+      }
+
+      const data = JSON.parse(response.getContentText());
+
+      // Process each entry to sum up hours
+      if (data.results && data.results.length > 0) {
+        data.results.forEach((page) => {
+          try {
+            // Access the hours property (adjust property name if different in your database)
+            if (page.properties && page.properties.hours) {
+              let hoursValue = 0;
+
+              // Handle different property types (number, formula, etc.)
+              if (page.properties.hours.type === "number") {
+                hoursValue = page.properties.hours.number || 0;
+              } else if (page.properties.hours.type === "formula") {
+                hoursValue = page.properties.hours.formula.number || 0;
+              }
+
+              totalHours += hoursValue;
+            }
+          } catch (e) {
+            console.error(`Error processing entry: ${e.message}`);
+          }
+        });
+      }
+
+      // Check if there are more pages
+      hasMore = data.has_more || false;
+      nextCursor = data.next_cursor || null;
+    }
+
+    console.log(`Total hours fetched from Notion: ${totalHours}`);
+    return totalHours;
+
+  } catch (error) {
+    console.error(`Error fetching data from Notion: ${error.message}`);
+    throw error;
+  }
+}
+
+// ============================================================================
 // MAIN FUNCTIONS
 // ============================================================================
 
@@ -127,6 +252,29 @@ function createInvoices() {
     const formattedDate = Utilities.formatDate(currentDate, "JST", "yyyy/MM/dd");
     const pdfFileName = Utilities.formatDate(currentDate, "JST", "yyyyMMdd") + "_株式会社DROX様_請求書";
 
+    // --- Fetch hours from Notion and override item_1_number ---
+    // This will replace the Google Sheets value with the summed hours from Notion
+    let itemNumber = invoice.item_1_number; // Default to Google Sheets value
+
+    try {
+      // For now, using fixed dates. You can make these dynamic later
+      const startDate = "2025-10-01";
+      const endDate = "2025-10-31";
+
+      const notionHours = fetchNotionHours(startDate, endDate);
+
+      if (notionHours !== null && notionHours !== undefined) {
+        itemNumber = notionHours;
+        console.log(`Invoice ${index + 1}: Using Notion hours: ${notionHours}`);
+      } else {
+        console.log(`Invoice ${index + 1}: No Notion hours found, using Google Sheets value: ${itemNumber}`);
+      }
+    } catch (notionError) {
+      console.error(`Invoice ${index + 1}: Failed to fetch Notion data, falling back to Google Sheets value`);
+      console.error(`Error details: ${notionError.message}`);
+      // Keep using the original Google Sheets value
+    }
+
     // Replace invoice details
     copiedSheet.createTextFinder("{{invoice_date}}").replaceAllWith(formattedDate);
 
@@ -134,9 +282,9 @@ function createInvoices() {
     copiedSheet.createTextFinder("{{seller_name}}").replaceAllWith(invoice.seller_name);
     copiedSheet.createTextFinder("{{seller_address}}").replaceAllWith(invoice.seller_address);
 
-    // Replace item details
+    // Replace item details (using itemNumber from Notion or Google Sheets)
     copiedSheet.createTextFinder("{{item_1_name}}").replaceAllWith(invoice.item_1_name);
-    copiedSheet.createTextFinder("{{item_1_number}}").replaceAllWith(invoice.item_1_number);
+    copiedSheet.createTextFinder("{{item_1_number}}").replaceAllWith(itemNumber);
     copiedSheet.createTextFinder("{{item_1_price}}").replaceAllWith(invoice.item_1_price);
 
     // Replace bank information
