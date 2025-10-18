@@ -1,0 +1,4 @@
+seller_name,seller_address,seller_phone_number,seller_email,item_1_name,item_1_number,item_1_price,seller_bank_name,seller_bank_type,seller_bank_number,seller_bank_holder_name,output_folder_id
+株式会社サンプルA,〒100-0001 東京都千代田区千代田1-1-1 サンプルビル5階,03-1234-5678,sample-a@example.com,Webシステム開発費,1,150000,三井住友銀行 東京支店（111）,普通,1234567,カ）サンプルエー,your-drive-folder-id-here
+株式会社サンプルB,〒150-0001 東京都渋谷区神宮前2-2-2 デモタワー10階,03-9876-5432,sample-b@example.com,コンサルティング費用,1,200000,みずほ銀行 渋谷支店（222）,普通,9876543,カ）サンプルビー,your-drive-folder-id-here
+フリーランス太郎,〒530-0001 大阪府大阪市北区梅田3-3-3 テストマンション301,06-1111-2222,taro@example.com,デザイン制作費,1,120000,三菱UFJ銀行 梅田支店（333）,普通,1112223,フリーランスタロウ,your-drive-folder-id-here

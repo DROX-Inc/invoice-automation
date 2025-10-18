@@ -1,285 +1,441 @@
 /**
- * Google Apps Script - Invoice PDF Generator
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * 📄 Google Apps Script - 請求書PDF自動生成ツール
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
- * This script automatically generates invoice PDFs from Google Sheets data.
+ * 【このスクリプトの機能】
+ * - Googleスプレッドシートのデータから請求書PDFを自動生成
+ * - Notionデータベースから作業時間を自動取得
+ * - PDFをGoogle Driveに保存
+ * - 請求書をメールで自動送信
  *
- * Features:
- * - Header-based data mapping (column order independent)
- * - Automatic date formatting
- * - Batch processing
- * - Error handling
- * - Dynamic seller information support
+ * 【主な特徴】
+ * ✓ ヘッダーベースのデータマッピング（列の順番は自由）
+ * ✓ 日付の自動フォーマット
+ * ✓ バッチ処理対応（複数の請求書を一括作成）
+ * ✓ エラーハンドリング（エラーが発生しても処理を継続）
+ * ✓ テストモード（メール送信なしで動作確認可能）
  *
- * Setup Instructions:
- * 1. Create a data spreadsheet with invoice information (see invoice-data.csv for structure)
- * 2. Create a template spreadsheet with placeholders (see invoice-template.csv)
- * 3. Update DATA_SPREADSHEET_ID, TEMPLATE_SPREADSHEET_ID, and NOTION_API_KEY below
- * 4. Run createInvoices() function
+ * 【セットアップ手順】初心者の方向け
+ * 1. データスプレッドシートを作成（invoice-data.csv を参照）
+ *    - 請求先情報、項目、金額などを入力します
+ *
+ * 2. テンプレートスプレッドシートを作成（invoice-template.csv を参照）
+ *    - {{seller_name}}のようなプレースホルダーを使います
+ *
+ * 3. 下記の環境変数を設定（必須！）
+ *    - DATA_SPREADSHEET_ID: データスプレッドシートのID
+ *    - TEMPLATE_SPREADSHEET_ID: テンプレートスプレッドシートのID
+ *    - NOTION_API_KEY: Notion APIキー
+ *
+ * 4. createInvoices() 関数を実行
+ *    - Google Apps Scriptエディタで関数を選択して実行ボタンを押す
+ *
+ * 【初回実行時の注意】
+ * - Google Apps Scriptが各種サービス（Drive、Gmail、Notion）への
+ *   アクセス許可を求めます。必ず許可してください。
  */
 
 // ============================================================================
-// ENVIRONMENT VARIABLES - UPDATE THESE FIRST
+// ⚙️ 環境変数 - 最初にここを設定してください！（必須）
 // ============================================================================
+// 【重要】以下の3つの変数は必ず設定する必要があります
 
-
+// データスプレッドシートのID
+// 取得方法: スプレッドシートのURLから取得
+// 例: https://docs.google.com/spreadsheets/d/【ここがID】/edit
 const DATA_SPREADSHEET_ID = "";
 
+// テンプレートスプレッドシートのID
+// 取得方法: スプレッドシートのURLから取得
+// 例: https://docs.google.com/spreadsheets/d/【ここがID】/edit
 const TEMPLATE_SPREADSHEET_ID = "";
 
+// Notion APIキー
+// 取得方法: https://www.notion.so/my-integrations でインテグレーションを作成
+// 作成後に表示される「Internal Integration Token」をコピー
 const NOTION_API_KEY = "";
 
 // ============================================================================
-// CONFIGURATION SECTION
+// 📋 設定セクション
 // ============================================================================
 
 /**
- * The data spreadsheet should have the following columns (in any order):
- * - seller_name: Seller company name
- * - seller_address: Seller address
- * - seller_email: Email address for invoice delivery
- * - item_1_name: Item description
- * - item_1_number: Item quantity
- * - item_1_price: Item price
- * - seller_bank_name: Bank name
- * - seller_bank_type: Account type
- * - seller_bank_number: Account number
- * - seller_bank_holder_name: Account holder name
- * - output_folder_id: (MANDATORY) Google Drive Folder ID for this invoice
+ * 【データスプレッドシートの列構成】
+ * データスプレッドシートには以下の列が必要です（順番は自由）：
  *
- * Note: Invoice date and PDF filename are automatically generated when creating the PDF
- * PDF filename format: YYYYMMDD_株式会社DROX様_請求書.pdf
+ * - seller_name: 請求先会社名（例: 株式会社ABC）
+ * - seller_address: 請求先住所
+ * - seller_email: メール送信先アドレス
+ * - item_1_name: 項目名（例: コンサルティング業務）
+ * - item_1_number: 数量（例: 作業時間）※Notionから自動取得も可能
+ * - item_1_price: 単価（例: 時間単価）
+ * - seller_bank_name: 銀行名
+ * - seller_bank_type: 口座種別（普通/当座）
+ * - seller_bank_number: 口座番号
+ * - seller_bank_holder_name: 口座名義
+ * - output_folder_id: （必須）PDFを保存するGoogle DriveフォルダのID
+ *
+ * 【自動生成される項目】
+ * - 請求日: スクリプト実行時の日付が自動設定されます
+ * - PDFファイル名: YYYYMMDD_株式会社DROX様_請求書.pdf の形式で自動生成
  */
 
 /**
- * Name of the sheet containing invoice data in the data spreadsheet
- * Default is usually 'Sheet1'
+ * データスプレッドシート内のシート名
+ * 通常は 'Sheet1' ですが、異なる場合は変更してください
  */
 const DATA_SHEET_NAME = "Sheet1";
 
 /**
- * Name of the sheet containing the invoice template
- * Default is usually 'Sheet1'
+ * テンプレートスプレッドシート内のシート名
+ * 通常は 'Sheet1' ですが、異なる場合は変更してください
  */
 const TEMPLATE_SHEET_NAME = "Sheet1";
 
 // ============================================================================
-// EMAIL CONFIGURATION
+// 📧 メール送信設定
 // ============================================================================
 
 /**
- * Email Settings
+ * 【メール送信の設定】
  *
- * Configure email sending functionality
- * Set TEST_MODE to true to avoid actual email sending during testing
+ * EMAIL_ENABLED: メール送信機能の有効/無効
+ *   - true: メール送信を有効にする
+ *   - false: メール送信を完全に無効にする（PDFのみ作成）
+ *
+ * TEST_MODE: テストモード
+ *   - true: メールを実際に送信せず、ログだけ出力（テスト用）
+ *   - false: 実際にメールを送信（本番用）
+ *   ⚠️ 初めて使う場合は true にしてテストすることをおすすめします
+ *
+ * SENDER_EMAIL: 送信者のメールアドレス
+ *   - Google Apps Scriptを実行するGoogleアカウントのメールアドレス
+ *
+ * SENDER_NAME: 送信者の表示名
+ *   - メール受信時に表示される送信者名
  */
-const EMAIL_ENABLED = true; // Set to false to disable email sending completely
-const TEST_MODE = false; // Set to true to only log emails without sending
-const SENDER_EMAIL = "koki-hata@drox-inc.com"; // Sender email address
-const SENDER_NAME = "株式会社DROX"; // Sender display name
+const EMAIL_ENABLED = true; // メール送信を有効にする
+const TEST_MODE = false; // テストモードを無効にする（本番運用時は false）
+const SENDER_EMAIL = "koki-hata@drox-inc.com"; // 送信者メールアドレス
+const SENDER_NAME = "株式会社DROX"; // 送信者名
 
 // ============================================================================
-// NOTION API CONFIGURATION
+// 🔗 Notion API 設定
 // ============================================================================
 
 /**
- * Notion Database Configuration
+ * 【Notion データベース設定】
  *
- * Make sure to:
- * 1. Set NOTION_API_KEY in the environment variables section above
- * 2. Share your Notion database with the integration
+ * Notionから作業時間を自動取得する場合に設定します
+ *
+ * セットアップ手順:
+ * 1. https://www.notion.so/my-integrations でインテグレーションを作成
+ * 2. 作成したインテグレーションのトークンを NOTION_API_KEY に設定（上部の環境変数セクション）
+ * 3. Notionデータベースをインテグレーションと共有
+ *    - データベースページの右上「...」→「コネクトの追加」→ インテグレーション名を選択
+ * 4. データベースのIDを NOTION_DATABASE_ID に設定
+ *    - データベースURLから取得: https://notion.so/【ここがID】?v=...
+ *
+ * 【Notionデータベースの必須プロパティ】
+ * - Start Time: 日付型（開始時刻）
+ * - End Time: 日付型（終了時刻）
+ * - hours: 数値型またはフォーミュラ型（作業時間）
  */
-const NOTION_DATABASE_ID = "25143e83afc180cfaa2bff97b74538eb";
-const NOTION_API_VERSION = "2022-06-28";
+const NOTION_DATABASE_ID = "25143e83afc180cfaa2bff97b74538eb"; // NotionデータベースのID
+const NOTION_API_VERSION = "2022-06-28"; // Notion APIのバージョン（通常変更不要）
 
 // ============================================================================
-// NOTION API FUNCTIONS
+// 🔗 Notion API 関数群
 // ============================================================================
 
 /**
- * Get Notion database schema to check property names and types
- * This helper function can be used to debug property configuration
+ * Notionデータベースのスキーマ（構造）を取得する関数
+ * 【用途】デバッグ時にデータベースのプロパティ名や型を確認できます
+ * 【初心者向け説明】
+ * - この関数は、Notionデータベースにどんなプロパティ（列）があるかを調べます
+ * - 例: "Start Time"という名前のプロパティが"date"型であることなどを確認できます
  *
- * @returns {Object} Database schema with properties
+ * @returns {Object} データベースのプロパティ情報
  */
 function getNotionDatabaseSchema() {
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("🔍 [開始] Notionデータベースのスキーマを取得します");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
   try {
+    // Notion APIのエンドポイントURL
+    // データベースIDを使ってデータベース情報を取得します
     const url = `https://api.notion.com/v1/databases/${NOTION_DATABASE_ID}`;
 
+    // APIリクエストのオプション設定
     const options = {
-      method: "get",
+      method: "get", // GETメソッド（データを取得するだけ）
       headers: {
-        "Authorization": `Bearer ${NOTION_API_KEY}`,
-        "Notion-Version": NOTION_API_VERSION
+        Authorization: `Bearer ${NOTION_API_KEY}`, // 認証トークン
+        "Notion-Version": NOTION_API_VERSION, // Notion APIのバージョン
       },
-      muteHttpExceptions: true
+      muteHttpExceptions: true, // エラーでも例外を投げずに続行
     };
 
+    console.log("📡 Notion APIにリクエストを送信中...");
     const response = UrlFetchApp.fetch(url, options);
     const data = JSON.parse(response.getContentText());
 
+    // レスポンスコードが200（成功）の場合
     if (response.getResponseCode() === 200) {
-      console.log("=== Notion Database Properties ===");
+      console.log("✅ データベース情報の取得に成功しました");
+      console.log("=== データベースのプロパティ一覧 ===");
+
+      // 各プロパティの名前と型をログに出力
       for (const [propName, propConfig] of Object.entries(data.properties)) {
-        console.log(`Property: "${propName}" - Type: ${propConfig.type}`);
+        console.log(`📋 プロパティ名: "${propName}" - 型: ${propConfig.type}`);
       }
-      console.log("=================================");
+      console.log("====================================");
+      console.log("✅ [完了] getNotionDatabaseSchema() - 成功");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
       return data.properties;
     } else {
-      console.error("Failed to get database schema:", data);
+      console.error("❌ データベーススキーマの取得に失敗しました:", data);
       return null;
     }
   } catch (error) {
-    console.error("Error getting database schema:", error.message);
+    console.error("❌ エラーが発生しました:", error.message);
+    console.error("💡 ヒント: NOTION_API_KEYとNOTION_DATABASE_IDが正しく設定されているか確認してください");
     return null;
   }
 }
 
 /**
- * Fetch hours from Notion database with date range filter
- * Sums up all "hours" property values from entries within the specified date range
+ * Notionデータベースから指定期間の作業時間を取得する関数
+ * 【機能】指定した日付範囲内のすべての"hours"プロパティの値を合計します
+ * 【初心者向け説明】
+ * - Notionデータベースに記録されている作業時間を自動で集計します
+ * - 例: 2025年10月1日〜31日の間に記録された作業時間をすべて足し算します
+ * - 請求書の作業時間を手動で計算する必要がなくなります
  *
- * @param {string} startDate - Start date in YYYY-MM-DD format (e.g., "2025-10-01")
- * @param {string} endDate - End date in YYYY-MM-DD format (e.g., "2025-10-31")
- * @returns {number} Total hours summed from matching Notion entries
+ * @param {string} startDate - 開始日（YYYY-MM-DD形式、例: "2025-10-01"）
+ * @param {string} endDate - 終了日（YYYY-MM-DD形式、例: "2025-10-31"）
+ * @returns {number} 合計作業時間（時間単位）
  */
 function fetchNotionHours(startDate, endDate) {
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("📊 [開始] Notionから作業時間を取得します");
+  console.log(`📅 対象期間: ${startDate} 〜 ${endDate}`);
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
   try {
-    // Validate input parameters
+    // ステップ1: 入力パラメータの検証
+    // 日付が正しく指定されているかチェックします
     if (!startDate || !endDate) {
-      console.error(`Invalid date parameters: startDate="${startDate}", endDate="${endDate}"`);
-      throw new Error(`Date parameters are required. Received: startDate="${startDate}", endDate="${endDate}"`);
+      console.error(`❌ 日付パラメータが無効です: 開始日="${startDate}", 終了日="${endDate}"`);
+      throw new Error(`日付パラメータが必須です。受信値: 開始日="${startDate}", 終了日="${endDate}"`);
     }
 
-    console.log(`Fetching hours from Notion for period: ${startDate} to ${endDate}`);
+    console.log(`🔍 Notionから ${startDate} 〜 ${endDate} の期間の作業時間を取得中...`);
 
+    // ステップ2: Notion APIのエンドポイントURL
     const url = `https://api.notion.com/v1/databases/${NOTION_DATABASE_ID}/query`;
 
-    // Construct the filter for date range
-    // Using "and" to filter by both Start Time and End Time
+    // ステップ3: フィルター条件を設定
+    // 日付範囲でデータをフィルタリングします
+    // "Start Time"が開始日以降 かつ "End Time"が終了日以前 のデータを取得
     const payload = {
       filter: {
         and: [
+          // "and"条件: 両方の条件を満たす必要がある
           {
-            property: "Start Time",
+            property: "Start Time", // 開始時刻プロパティ
             date: {
-              on_or_after: startDate
-            }
+              on_or_after: startDate, // 指定開始日以降
+            },
           },
           {
-            property: "End Time",
+            property: "End Time", // 終了時刻プロパティ
             date: {
-              on_or_before: endDate
-            }
-          }
-        ]
+              on_or_before: endDate, // 指定終了日以前
+            },
+          },
+        ],
       },
-      page_size: 100 // Maximum allowed by Notion API
+      page_size: 100, // 1回のリクエストで最大100件取得（Notion APIの上限）
     };
 
-    // Debug: Log the filter structure
-    console.log("Notion API payload:", JSON.stringify(payload, null, 2));
+    // デバッグ用: フィルター内容をログに出力
+    console.log("📤 送信するフィルター条件:", JSON.stringify(payload, null, 2));
 
+    // ステップ4: APIリクエストのオプション設定
     const options = {
-      method: "post",
+      method: "post", // POSTメソッド（データをクエリする）
       headers: {
-        "Authorization": `Bearer ${NOTION_API_KEY}`,
-        "Notion-Version": NOTION_API_VERSION,
-        "Content-Type": "application/json"
+        Authorization: `Bearer ${NOTION_API_KEY}`, // 認証トークン
+        "Notion-Version": NOTION_API_VERSION, // APIバージョン
+        "Content-Type": "application/json", // JSON形式で送信
       },
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
+      payload: JSON.stringify(payload), // リクエストボディ
+      muteHttpExceptions: true, // エラーでも例外を投げずに続行
     };
 
-    let totalHours = 0;
-    let hasMore = true;
-    let nextCursor = null;
+    // ステップ5: 変数の初期化
+    let totalHours = 0; // 合計時間を格納する変数
+    let hasMore = true; // まだデータがあるかどうかのフラグ
+    let nextCursor = null; // 次のページを取得するためのカーソル
+    let pageCount = 0; // 取得したページ数（ログ用）
 
-    // Handle pagination if there are more than 100 results
+    // ステップ6: ページネーション処理
+    // Notion APIは1回のリクエストで最大100件しか返さないため、
+    // 100件以上ある場合は複数回リクエストを送る必要があります
+    console.log("🔄 データ取得ループを開始...");
     while (hasMore) {
+      pageCount++;
+
+      // 2ページ目以降の場合、カーソルを設定
       if (nextCursor) {
+        console.log(`📄 ページ ${pageCount} を取得中...`);
         payload.start_cursor = nextCursor;
         options.payload = JSON.stringify(payload);
+      } else {
+        console.log(`📄 ページ 1 を取得中...`);
       }
 
+      // APIリクエストを送信
       const response = UrlFetchApp.fetch(url, options);
       const responseCode = response.getResponseCode();
 
+      // レスポンスコードが200以外の場合はエラー
       if (responseCode !== 200) {
-        console.error(`Notion API error: ${response.getContentText()}`);
-        throw new Error(`Notion API returned error code: ${responseCode}`);
+        console.error(`❌ Notion APIエラー: ${response.getContentText()}`);
+        throw new Error(`Notion APIがエラーコードを返しました: ${responseCode}`);
       }
 
       const data = JSON.parse(response.getContentText());
+      console.log(`✅ ページ ${pageCount} を取得しました（${data.results.length}件）`);
 
-      // Process each entry to sum up hours
+      // ステップ7: 各エントリの作業時間を合計
       if (data.results && data.results.length > 0) {
-        data.results.forEach((page) => {
+        let pageHours = 0; // このページの合計時間
+
+        data.results.forEach((page, index) => {
           try {
-            // Access the hours property (adjust property name if different in your database)
+            // "hours"プロパティにアクセス
+            // （データベース内でプロパティ名が異なる場合は変更してください）
             if (page.properties && page.properties.hours) {
               let hoursValue = 0;
 
-              // Handle different property types (number, formula, etc.)
+              // プロパティの型に応じて値を取得
+              // Notionでは"number"型と"formula"型がある
               if (page.properties.hours.type === "number") {
                 hoursValue = page.properties.hours.number || 0;
               } else if (page.properties.hours.type === "formula") {
                 hoursValue = page.properties.hours.formula.number || 0;
               }
 
+              pageHours += hoursValue;
               totalHours += hoursValue;
             }
           } catch (e) {
-            console.error(`Error processing entry: ${e.message}`);
+            console.error(`❌ エントリ処理中にエラー: ${e.message}`);
           }
         });
+
+        console.log(`   → このページの合計: ${pageHours.toFixed(2)}時間`);
       }
 
-      // Check if there are more pages
+      // ステップ8: 次のページがあるかチェック
       hasMore = data.has_more || false;
       nextCursor = data.next_cursor || null;
+
+      if (hasMore) {
+        console.log("   → まだデータがあります。次のページを取得します...");
+      } else {
+        console.log("   → すべてのデータを取得しました");
+      }
     }
 
-    console.log(`Total hours fetched from Notion: ${totalHours}`);
+    console.log(`✅ 合計作業時間: ${totalHours.toFixed(2)}時間（全${pageCount}ページから取得）`);
+    console.log("✅ [完了] fetchNotionHours() - 成功");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
     return totalHours;
-
   } catch (error) {
-    console.error(`Error fetching data from Notion: ${error.message}`);
+    console.error(`❌ Notionからのデータ取得に失敗しました: ${error.message}`);
+    console.error(
+      "💡 ヒント: Notion APIキー、データベースID、プロパティ名（hours, Start Time, End Time）を確認してください"
+    );
+    console.error("❌ [完了] fetchNotionHours() - 失敗");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
     throw error;
   }
 }
 
 // ============================================================================
-// MAIN FUNCTIONS
+// 📝 メイン関数（請求書作成の中心処理）
 // ============================================================================
 
+/**
+ * 【メイン関数】請求書を一括作成する関数
+ * 【初心者向け説明】
+ * この関数がスクリプトの中心です。以下の処理を自動で行います：
+ * 1. Googleスプレッドシートから請求書データを読み込み
+ * 2. Notionから作業時間を取得
+ * 3. テンプレートに情報を埋め込み
+ * 4. PDFを作成してGoogle Driveに保存
+ * 5. 請求書をメールで送信
+ *
+ * 【使い方】
+ * Google Apps Scriptのエディタで「createInvoices」関数を選択して実行ボタンを押すだけ！
+ */
 function createInvoices() {
-  // --- Get data spreadsheet, template spreadsheet, and output folder ---
+  console.log("╔════════════════════════════════════════════════════════════════╗");
+  console.log("║                    請求書自動作成を開始します                    ║");
+  console.log("╚════════════════════════════════════════════════════════════════╝\n");
 
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ステップ1: スプレッドシートとテンプレートを取得
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  console.log("📂 [ステップ1] スプレッドシートを開いています...");
+
+  // データが入っているスプレッドシートを開く
   const dataSpreadsheet = SpreadsheetApp.openById(DATA_SPREADSHEET_ID);
   const dataSheet = dataSpreadsheet.getSheetByName(DATA_SHEET_NAME);
 
+  // シートが見つからない場合はエラーを表示して終了
   if (!dataSheet) {
-    console.error(`Data sheet "${DATA_SHEET_NAME}" not found.`);
+    console.error(`❌ データシート "${DATA_SHEET_NAME}" が見つかりません。`);
+    console.error("💡 ヒント: DATA_SHEET_NAMEの設定を確認してください");
     return;
   }
+  console.log(`✅ データシートを開きました: "${DATA_SHEET_NAME}"`);
 
+  // 請求書のテンプレートスプレッドシートを開く
   const templateSpreadsheet = SpreadsheetApp.openById(TEMPLATE_SPREADSHEET_ID);
   const templateSheet = templateSpreadsheet.getSheetByName(TEMPLATE_SHEET_NAME);
 
+  // テンプレートシートが見つからない場合はエラーを表示して終了
   if (!templateSheet) {
-    console.error(`Template sheet "${TEMPLATE_SHEET_NAME}" not found.`);
+    console.error(`❌ テンプレートシート "${TEMPLATE_SHEET_NAME}" が見つかりません。`);
+    console.error("💡 ヒント: TEMPLATE_SHEET_NAMEの設定を確認してください");
     return;
   }
+  console.log(`✅ テンプレートシートを開きました: "${TEMPLATE_SHEET_NAME}"\n`);
 
-  // --- Read invoice data from spreadsheet ---
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ステップ2: スプレッドシートからデータを読み込む
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  console.log("📊 [ステップ2] データを読み込んでいます...");
+
+  // シート全体のデータを取得（2次元配列として取得される）
   const data = dataSheet.getDataRange().getValues();
 
-  // First row contains headers
+  // 1行目はヘッダー（列名）
   const headers = data[0];
+  console.log(`📋 ヘッダー: ${headers.join(", ")}`);
+
+  // 2行目以降が実際のデータ
   const dataRows = data.slice(1);
 
-  // Convert rows to invoice objects based on headers
-  const invoiceDataRows = dataRows.map(row => {
+  // 各行をオブジェクトに変換（ヘッダーをキーにする）
+  // 例: { seller_name: "株式会社ABC", seller_email: "abc@example.com", ... }
+  const invoiceDataRows = dataRows.map((row) => {
     const invoice = {};
     headers.forEach((header, index) => {
       invoice[header] = row[index];
@@ -287,85 +443,119 @@ function createInvoices() {
     return invoice;
   });
 
-  // Track success and failure counts
-  let successCount = 0;
-  let failureCount = 0;
-  let skippedCount = 0;
-  let emailsSentCount = 0;
-  let emailsFailedCount = 0;
+  console.log(`✅ ${invoiceDataRows.length}件の請求書データを読み込みました\n`);
 
-  console.log(`Starting invoice generation for ${invoiceDataRows.length} row(s)...`);
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ステップ3: カウンター変数を初期化（処理結果を記録するため）
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  let successCount = 0; // PDF作成成功数
+  let failureCount = 0; // PDF作成失敗数
+  let skippedCount = 0; // スキップ数
+  let emailsSentCount = 0; // メール送信成功数
+  let emailsFailedCount = 0; // メール送信失敗数
 
-  // --- Process invoice data row by row ---
+  console.log("╔════════════════════════════════════════════════════════════════╗");
+  console.log(`║              ${invoiceDataRows.length}件の請求書作成を開始します                      ║`);
+  console.log("╚════════════════════════════════════════════════════════════════╝\n");
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ステップ4: 請求書データを1行ずつ処理
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   invoiceDataRows.forEach((invoice, index) => {
-    // --- Invoice creation process ---
-    // 1. Copy template sheet to create a working sheet
-    // Working sheet is created in the template spreadsheet
+    console.log("┌────────────────────────────────────────────────────────────┐");
+    console.log(`│  請求書 ${index + 1}/${invoiceDataRows.length} の作成を開始                                    │`);
+    console.log(`│  宛先: ${invoice.seller_name}                                  `);
+    console.log("└────────────────────────────────────────────────────────────┘");
 
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // ステップ4-1: テンプレートシートをコピーして作業用シートを作成
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    console.log("  📄 テンプレートをコピーして作業用シートを作成中...");
     const copiedSheet = templateSheet.copyTo(templateSpreadsheet);
-
-    const newSheetName = `temp_${index + 1}`; // Temporary sheet name
-
+    const newSheetName = `temp_${index + 1}`; // 一時的なシート名
     copiedSheet.setName(newSheetName);
+    console.log(`  ✅ 作業用シート作成完了: "${newSheetName}"`);
 
-    // 2. Replace placeholders with actual data
-    // Use current date and generate PDF filename
-
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // ステップ4-2: 現在の日付を取得してPDFファイル名を生成
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    console.log("  📅 日付情報を生成中...");
     const currentDate = new Date();
     const formattedDate = Utilities.formatDate(currentDate, "JST", "yyyy/MM/dd");
     const pdfFileName = Utilities.formatDate(currentDate, "JST", "yyyyMMdd") + "_株式会社DROX様_請求書";
+    console.log(`  ✅ 請求日: ${formattedDate}`);
+    console.log(`  ✅ PDFファイル名: ${pdfFileName}.pdf`);
 
-    // --- Fetch hours from Notion and override item_1_number ---
-    // This will replace the Google Sheets value with the summed hours from Notion
-    let itemNumber = invoice.item_1_number; // Default to Google Sheets value
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // ステップ4-3: Notionから作業時間を取得（重要！）
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    console.log("  ⏰ Notionから作業時間を取得中...");
+    let itemNumber = invoice.item_1_number; // デフォルトはスプレッドシートの値
 
     try {
-      // For now, using fixed dates. You can make these dynamic later
+      // TODO: 将来的には動的に日付を設定できるようにする
+      // 現在は固定値を使用
       const startDate = "2025-10-01";
       const endDate = "2025-10-31";
 
+      console.log(`  📊 対象期間: ${startDate} 〜 ${endDate}`);
       const notionHours = fetchNotionHours(startDate, endDate);
 
       if (notionHours !== null && notionHours !== undefined) {
         itemNumber = notionHours;
-        console.log(`Invoice ${index + 1}: Using Notion hours: ${notionHours}`);
+        console.log(`  ✅ Notionから取得した作業時間を使用: ${notionHours}時間`);
       } else {
-        console.log(`Invoice ${index + 1}: No Notion hours found, using Google Sheets value: ${itemNumber}`);
+        console.log(`  ⚠️ Notionからデータが取得できませんでした。スプレッドシートの値を使用: ${itemNumber}時間`);
       }
     } catch (notionError) {
-      console.error(`Invoice ${index + 1}: Failed to fetch Notion data, falling back to Google Sheets value`);
-      console.error(`Error details: ${notionError.message}`);
-      // Keep using the original Google Sheets value
+      console.error(`  ❌ Notionデータの取得に失敗しました。スプレッドシートの値を使用します`);
+      console.error(`  エラー詳細: ${notionError.message}`);
+      // エラーが発生してもスプレッドシートの値で続行
     }
 
-    // Replace invoice details
-    copiedSheet.createTextFinder("{{invoice_date}}").replaceAllWith(formattedDate);
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // ステップ4-4: プレースホルダーを実際のデータに置き換え
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    console.log("  🔄 テンプレートにデータを埋め込み中...");
 
-    // Replace seller information
+    // 請求日を置き換え
+    copiedSheet.createTextFinder("{{invoice_date}}").replaceAllWith(formattedDate);
+    console.log("    ✓ 請求日");
+
+    // 請求先情報を置き換え
     copiedSheet.createTextFinder("{{seller_name}}").replaceAllWith(invoice.seller_name);
     copiedSheet.createTextFinder("{{seller_address}}").replaceAllWith(invoice.seller_address);
+    console.log("    ✓ 請求先情報");
 
-    // Replace item details (using itemNumber from Notion or Google Sheets)
+    // 項目詳細を置き換え（Notionまたはスプレッドシートから取得した作業時間を使用）
     copiedSheet.createTextFinder("{{item_1_name}}").replaceAllWith(invoice.item_1_name);
     copiedSheet.createTextFinder("{{item_1_number}}").replaceAllWith(itemNumber);
     copiedSheet.createTextFinder("{{item_1_price}}").replaceAllWith(invoice.item_1_price);
+    console.log("    ✓ 項目詳細");
 
-    // Replace bank information
+    // 銀行情報を置き換え
     copiedSheet.createTextFinder("{{seller_bank_name}}").replaceAllWith(invoice.seller_bank_name);
     copiedSheet.createTextFinder("{{seller_bank_type}}").replaceAllWith(invoice.seller_bank_type);
     copiedSheet.createTextFinder("{{seller_bank_number}}").replaceAllWith(invoice.seller_bank_number);
     copiedSheet.createTextFinder("{{seller_bank_holder_name}}").replaceAllWith(invoice.seller_bank_holder_name);
+    console.log("    ✓ 銀行情報");
 
-    // 3. Flush changes to spreadsheet immediately
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // ステップ4-5: 変更をスプレッドシートに即座に反映
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    SpreadsheetApp.flush(); // バッファをフラッシュして確実に保存
+    console.log("  ✅ データの埋め込みが完了しました");
 
-    SpreadsheetApp.flush();
-
-    // 4. Validate and get output folder (MANDATORY)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // ステップ4-6: 出力先フォルダを検証（必須項目）
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    console.log("  📁 出力先フォルダを確認中...");
 
     if (!invoice.output_folder_id || invoice.output_folder_id.trim() === "") {
       failureCount++;
-      console.error(`Invoice ${index + 1}: Error - output_folder_id is required but not provided`);
+      console.error(`  ❌ 請求書 ${index + 1}: output_folder_id（出力先フォルダID）が指定されていません`);
+      console.error("  💡 ヒント: スプレッドシートのoutput_folder_id列にGoogle DriveのフォルダIDを入力してください");
       templateSpreadsheet.deleteSheet(copiedSheet);
       return;
     }
@@ -373,254 +563,365 @@ function createInvoices() {
     let targetFolder;
     try {
       targetFolder = DriveApp.getFolderById(invoice.output_folder_id);
-      console.log(`Invoice ${index + 1}: Using folder ID: ${invoice.output_folder_id}`);
+      console.log(`  ✅ 出力先フォルダID: ${invoice.output_folder_id}`);
     } catch (e) {
       failureCount++;
-      console.error(`Invoice ${index + 1}: Error - Invalid output_folder_id: ${invoice.output_folder_id}. ${e.message}`);
+      console.error(`  ❌ 請求書 ${index + 1}: 無効なoutput_folder_id: ${invoice.output_folder_id}`);
+      console.error(`  エラー詳細: ${e.message}`);
+      console.error("  💡 ヒント: フォルダIDが正しいか、アクセス権限があるか確認してください");
       templateSpreadsheet.deleteSheet(copiedSheet);
       return;
     }
 
-    // 5. Create PDF and save to Google Drive
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // ステップ4-7: PDFを作成してGoogle Driveに保存
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    console.log("  📄 PDFを作成中...");
 
     let pdfFile = null;
     try {
       pdfFile = createPdfInDrive(templateSpreadsheet, copiedSheet.getSheetId(), targetFolder, pdfFileName);
       successCount++;
-      console.log(`Invoice ${index + 1}: Successfully created ${pdfFileName}.pdf`);
+      console.log(`  ✅ 請求書 ${index + 1}: PDF作成成功 - ${pdfFileName}.pdf`);
     } catch (e) {
       failureCount++;
-      console.error(`Invoice ${index + 1}: Error creating ${pdfFileName}.pdf - ${e.message}`);
+      console.error(`  ❌ 請求書 ${index + 1}: PDF作成失敗 - ${pdfFileName}.pdf`);
+      console.error(`  エラー詳細: ${e.message}`);
       templateSpreadsheet.deleteSheet(copiedSheet);
       return;
     }
 
-    // 6. Send email if enabled and email address is available
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // ステップ4-8: メール送信（有効化されている場合のみ）
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     if (EMAIL_ENABLED && pdfFile) {
+      console.log("  📧 メール送信処理を開始...");
+
       const recipientEmail = invoice.seller_email;
       const recipientName = invoice.seller_name;
 
-      if (recipientEmail && recipientEmail.includes('@')) {
+      if (recipientEmail && recipientEmail.includes("@")) {
         const emailSent = sendInvoiceEmail(recipientEmail, recipientName, pdfFile, formattedDate);
 
         if (emailSent) {
           emailsSentCount++;
-          console.log(`Invoice ${index + 1}: Email sent to ${recipientEmail}`);
+          console.log(`  ✅ 請求書 ${index + 1}: メール送信成功 → ${recipientEmail}`);
         } else {
           emailsFailedCount++;
-          console.error(`Invoice ${index + 1}: Failed to send email to ${recipientEmail}`);
+          console.error(`  ❌ 請求書 ${index + 1}: メール送信失敗 → ${recipientEmail}`);
         }
       } else {
-        console.warn(`Invoice ${index + 1}: No valid email address provided, skipping email sending`);
+        console.warn(`  ⚠️ 請求書 ${index + 1}: 有効なメールアドレスがないためメール送信をスキップします`);
       }
+    } else if (!EMAIL_ENABLED) {
+      console.log("  ℹ️ メール送信が無効化されています（EMAIL_ENABLED = false）");
     }
 
-    // 7. Delete the temporary working sheet
-
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // ステップ4-9: 作業用シートを削除（クリーンアップ）
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     templateSpreadsheet.deleteSheet(copiedSheet);
+    console.log(`  🗑️ 作業用シート "${newSheetName}" を削除しました\n`);
   });
 
-  // Log completion summary
-  console.log("\n=== Invoice Generation Complete ===");
-  console.log(`Total rows processed: ${invoiceDataRows.length}`);
-  console.log(`✓ PDFs created: ${successCount}`);
-  console.log(`✗ PDFs failed: ${failureCount}`);
-  console.log(`⊘ Skipped: ${skippedCount}`);
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 処理完了サマリーを表示
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  console.log("\n╔════════════════════════════════════════════════════════════════╗");
+  console.log("║                    📊 処理結果サマリー                          ║");
+  console.log("╚════════════════════════════════════════════════════════════════╝");
+  console.log(`\n📝 処理した請求書の総数: ${invoiceDataRows.length}件`);
+  console.log(`\n【PDF作成結果】`);
+  console.log(`  ✅ 成功: ${successCount}件`);
+  console.log(`  ❌ 失敗: ${failureCount}件`);
+  console.log(`  ⊘ スキップ: ${skippedCount}件`);
 
   if (EMAIL_ENABLED) {
-    console.log("\n--- Email Summary ---");
-    console.log(`✓ Emails sent: ${emailsSentCount}`);
-    console.log(`✗ Emails failed: ${emailsFailedCount}`);
+    console.log(`\n【メール送信結果】`);
+    console.log(`  ✅ 送信成功: ${emailsSentCount}件`);
+    console.log(`  ❌ 送信失敗: ${emailsFailedCount}件`);
 
     if (TEST_MODE) {
-      console.log("※ TEST MODE was enabled - no emails were actually sent");
+      console.log("\n⚠️ テストモードが有効でした - 実際にはメールは送信されていません");
+      console.log("   本番環境で使用する場合は TEST_MODE を false に設定してください");
     }
   } else {
-    console.log("\n※ Email sending is disabled");
+    console.log("\n📧 メール送信: 無効化されています（EMAIL_ENABLED = false）");
   }
 
-  console.log("===================================");
+  console.log("\n" + "=".repeat(64));
+  console.log("🎉 すべての処理が完了しました！");
+  console.log("=".repeat(64) + "\n");
 }
 
+// ============================================================================
+// 📄 PDF作成関数
+// ============================================================================
+
 /**
-
- * Function to save a specified sheet as PDF to Google Drive
-
- * @param {Spreadsheet} spreadsheet - The spreadsheet containing the sheet to convert to PDF
-
- * @param {string} sheetId - The ID of the sheet to convert to PDF
-
- * @param {Folder} folder - The Google Drive folder where the PDF will be saved
-
- * @param {string} fileName - The filename for the PDF (without extension)
-
+ * スプレッドシートの指定シートをPDFとしてGoogle Driveに保存する関数
+ * 【初心者向け説明】
+ * - スプレッドシートのシートをPDFファイルに変換します
+ * - Google DriveのエクスポートAPIを使用して高品質なPDFを生成します
+ * - 用紙サイズ、余白、配置などを細かく設定できます
+ *
+ * @param {Spreadsheet} spreadsheet - PDF化するシートが含まれるスプレッドシート
+ * @param {string} sheetId - PDF化するシートのID
+ * @param {Folder} folder - PDFを保存するGoogle Driveフォルダ
+ * @param {string} fileName - PDFのファイル名（拡張子なし）
+ * @returns {File} 作成されたPDFファイルオブジェクト
  */
 function createPdfInDrive(spreadsheet, sheetId, folder, fileName) {
+  console.log("    🔧 PDF生成パラメータを設定中...");
+
+  // スプレッドシートのIDを取得
   const spreadsheetId = spreadsheet.getId();
 
-  // Create URL for PDF export
+  // PDFエクスポート用のURLを作成
+  // このURLにアクセスすることでスプレッドシートをPDFとしてダウンロードできます
   const url =
     `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?` +
-    "format=pdf" +
+    "format=pdf" + // PDFフォーマットで出力
     "&gid=" +
-    sheetId + // Specify sheet ID
-    "&size=A4" + // Paper size (A3/A4/A5/letter/legal, etc.)
-    "&portrait=true" + // Portrait orientation (false = landscape)
-    "&scale=3" + // Scale setting:
-    // 1 = Normal (100%)
-    // 2 = Fit to width
-    // 3 = Fit to height ★ Recommended
-    // 4 = Fit to page
-    "&top_margin=0.2" + // Top margin (inches)
-    "&bottom_margin=0.2" + // Bottom margin (inches)
-    "&left_margin=0.2" + // Left margin (inches)
-    "&right_margin=0.2" + // Right margin (inches)
-    "&sheetnames=false" + // Hide sheet name
-    "&printtitle=false" + // Hide spreadsheet name
-    "&gridlines=false" + // Hide grid lines
-    "&fzr=false" + // Ignore frozen rows
-    "&horizontal_alignment=CENTER" + // Horizontal alignment (LEFT/CENTER/RIGHT)
-    "&vertical_alignment=TOP"; // Vertical alignment (TOP/MIDDLE/BOTTOM)
+    sheetId + // 対象シートのIDを指定
+    "&size=A4" + // 用紙サイズ: A4 (他: A3, A5, letter, legal など)
+    "&portrait=true" + // 縦向き (false で横向き)
+    "&scale=3" + // スケール設定: 3 = 高さに合わせる（推奨）
+    // スケールオプション:
+    // 1 = 標準（100%）
+    // 2 = 幅に合わせる
+    // 3 = 高さに合わせる ★ おすすめ
+    // 4 = ページに合わせる
+    "&top_margin=0.2" + // 上余白（インチ単位）
+    "&bottom_margin=0.2" + // 下余白（インチ単位）
+    "&left_margin=0.2" + // 左余白（インチ単位）
+    "&right_margin=0.2" + // 右余白（インチ単位）
+    "&sheetnames=false" + // シート名を非表示
+    "&printtitle=false" + // スプレッドシート名を非表示
+    "&gridlines=false" + // グリッド線を非表示
+    "&fzr=false" + // 固定行を無視
+    "&horizontal_alignment=CENTER" + // 水平方向の配置: 中央 (LEFT/CENTER/RIGHT)
+    "&vertical_alignment=TOP"; // 垂直方向の配置: 上 (TOP/MIDDLE/BOTTOM)
 
+  console.log("    ✓ PDF設定完了（A4、縦向き、高さに合わせる）");
+
+  // 認証トークンを取得（Google APIへのアクセスに必要）
   const token = ScriptApp.getOAuthToken();
+
+  // HTTPリクエストのオプション設定
   const options = {
     headers: {
-      Authorization: "Bearer " + token,
+      Authorization: "Bearer " + token, // 認証ヘッダー
     },
-    muteHttpExceptions: true,
+    muteHttpExceptions: true, // エラーでも例外を投げずに続行
   };
 
-  // Fetch PDF data from URL
+  console.log("    📥 PDFデータをダウンロード中...");
+
+  // PDFデータをダウンロード
   const response = UrlFetchApp.fetch(url, options);
+
+  // レスポンスをBlobオブジェクトに変換してファイル名を設定
   const blob = response.getBlob().setName(fileName + ".pdf");
 
-  // Create PDF file in folder
+  console.log("    💾 Google Driveに保存中...");
+
+  // フォルダにPDFファイルを作成
   const pdfFile = folder.createFile(blob);
 
-  // Return the created PDF file for further processing
+  console.log(`    ✅ PDF保存完了: ${fileName}.pdf`);
+
+  // 作成したPDFファイルを返す（後続処理で使用）
   return pdfFile;
 }
 
 // ============================================================================
-// EMAIL FUNCTIONS
+// メール送信関数
 // ============================================================================
 
 /**
- * Send invoice email with PDF link
+ * 請求書PDFのリンクを含むメールを送信する関数
+ * 【初心者向け説明】
+ * - 作成した請求書PDFへのリンクをメールで送信します
+ * - 日本語のビジネスメール形式でメールを作成します
+ * - TEST_MODE を true にすると実際には送信せずログだけ出力されます（テスト用）
  *
- * @param {string} recipientEmail - The recipient's email address
- * @param {string} recipientName - The recipient's name
- * @param {File} pdfFile - The PDF file object from Google Drive
- * @param {string} invoiceDate - The invoice date in YYYY/MM/DD format
- * @returns {boolean} True if email sent successfully, false otherwise
+ * @param {string} recipientEmail - 受信者のメールアドレス
+ * @param {string} recipientName - 受信者の名前
+ * @param {File} pdfFile - Google DriveのPDFファイルオブジェクト
+ * @param {string} invoiceDate - 請求日（YYYY/MM/DD形式）
+ * @returns {boolean} メール送信成功時は true、失敗時は false
  */
 function sendInvoiceEmail(recipientEmail, recipientName, pdfFile, invoiceDate) {
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("📧 [開始] メール送信処理");
+  console.log(`📬 宛先: ${recipientName} <${recipientEmail}>`);
+  console.log(`📅 請求日: ${invoiceDate}`);
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
   try {
-    // Validate email address
-    if (!recipientEmail || !recipientEmail.includes('@')) {
-      console.error(`Invalid email address: ${recipientEmail}`);
+    // ステップ1: メールアドレスの検証
+    // @マークが含まれているか簡易チェック
+    if (!recipientEmail || !recipientEmail.includes("@")) {
+      console.error(`❌ 無効なメールアドレスです: ${recipientEmail}`);
+      console.error("❌ [完了] sendInvoiceEmail() - 失敗（無効なメールアドレス）");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
       return false;
     }
+    console.log("✓ メールアドレスの検証完了");
 
-    // Get the sharing URL for the PDF file
+    // ステップ2: PDFファイルの共有URLを取得
+    console.log("🔗 PDF共有URLを生成中...");
     const pdfUrl = getPdfShareableUrl(pdfFile);
 
-    // Extract year and month from invoice date
+    // ステップ3: 請求日から年と月を抽出
+    // getMonth()は0-11を返すので+1する必要があります
     const dateObj = new Date(invoiceDate);
     const year = dateObj.getFullYear();
-    const month = dateObj.getMonth() + 1; // getMonth() returns 0-11
+    const month = dateObj.getMonth() + 1;
+    console.log(`✓ 対象期間: ${year}年${month}月`);
 
-    // Email subject
+    // ステップ4: メールの件名を作成
     const subject = `請求書送付のご案内 [${year}年${month}月分]`;
+    console.log(`✓ 件名: ${subject}`);
 
-    // Email body (Japanese business email format)
+    // ステップ5: メール本文を作成（HTML形式）
+    console.log("✍️ メール本文を作成中...");
     const body = createEmailBody(recipientName, year, month, pdfUrl);
 
-    // Prepare email options
+    // ステップ6: メールオプションを設定
     const options = {
-      name: SENDER_NAME,
-      htmlBody: body,
-      from: SENDER_EMAIL
+      name: SENDER_NAME, // 送信者名
+      htmlBody: body, // HTML形式の本文
+      from: SENDER_EMAIL, // 送信者メールアドレス
     };
 
-    // Send email or log if in test mode
+    // ステップ7: メールを送信（またはテストモードの場合はログ出力のみ）
     if (TEST_MODE) {
-      console.log("=== TEST MODE: Email would be sent ===");
-      console.log(`To: ${recipientEmail}`);
-      console.log(`Subject: ${subject}`);
-      console.log(`Body: ${body}`);
-      console.log("=====================================");
+      // テストモード: 実際には送信せず、ログだけ出力
+      console.log("⚠️ テストモード: メールは実際には送信されません");
+      console.log(`   宛先: ${recipientEmail}`);
+      console.log(`   件名: ${subject}`);
+      console.log(`   PDF URL: ${pdfUrl}`);
+      console.log("✅ [完了] sendInvoiceEmail() - 成功（テストモード）");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
       return true;
     } else {
+      // 本番モード: 実際にメールを送信
+      console.log("📤 メールを送信中...");
       GmailApp.sendEmail(recipientEmail, subject, body, options);
-      console.log(`Email sent successfully to: ${recipientEmail}`);
+      console.log(`✅ メール送信成功: ${recipientEmail}`);
+      console.log("✅ [完了] sendInvoiceEmail() - 成功");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
       return true;
     }
-
   } catch (error) {
-    console.error(`Failed to send email to ${recipientEmail}: ${error.message}`);
+    console.error(`❌ メール送信に失敗しました: ${recipientEmail}`);
+    console.error(`エラー詳細: ${error.message}`);
+    console.error("💡 ヒント: Gmail APIの権限、送信者メールアドレス、受信者メールアドレスを確認してください");
+    console.error("❌ [完了] sendInvoiceEmail() - 失敗");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
     return false;
   }
 }
 
 /**
- * Generate shareable URL for PDF file in Google Drive
+ * Google DriveのPDFファイルの共有URLを生成する関数
+ * 【初心者向け説明】
+ * - PDFファイルを「リンクを知っている全員が閲覧可能」に設定します
+ * - メールで送信できる共有リンクを生成します
+ * - 受信者はこのリンクからPDFをダウンロードできます
  *
- * @param {File} pdfFile - The PDF file object
- * @returns {string} Shareable URL for the PDF
+ * @param {File} pdfFile - PDFファイルオブジェクト
+ * @returns {string} PDF共有URL
  */
 function getPdfShareableUrl(pdfFile) {
-  try {
-    // Set sharing permissions - Anyone with the link can view
-    pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("🔗 [開始] PDF共有URL生成");
+  console.log(`📄 ファイル名: ${pdfFile.getName()}`);
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    // Get the download URL
+  try {
+    // ステップ1: ファイルの共有設定を変更
+    // 「リンクを知っている全員」が「閲覧」できるように設定
+    console.log("🔓 共有設定を変更中...");
+    pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    console.log("✅ 共有設定完了: リンクを知っている全員が閲覧可能");
+
+    // ステップ2: ファイルIDを取得して共有URLを生成
     const fileId = pdfFile.getId();
     const shareableUrl = `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
 
+    console.log(`✅ 共有URL生成完了`);
+    console.log(`   URL: ${shareableUrl}`);
+    console.log("✅ [完了] getPdfShareableUrl() - 成功");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
     return shareableUrl;
   } catch (error) {
-    console.error(`Failed to generate shareable URL: ${error.message}`);
+    console.error(`❌ 共有URLの生成に失敗しました: ${error.message}`);
+    console.error("💡 ヒント: Google Driveの権限を確認してください");
+    console.error("❌ [完了] getPdfShareableUrl() - 失敗");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
     throw error;
   }
 }
 
 /**
- * Create email body with Japanese business format
+ * 日本語ビジネスメール形式のメール本文を作成する関数
+ * 【初心者向け説明】
+ * - HTML形式で見栄えの良いメール本文を作成します
+ * - 日本語のビジネスメール定型文を使用します
+ * - PDF閲覧用のボタンとリンクを含めます
  *
- * @param {string} recipientName - The recipient's name
- * @param {number} year - Invoice year
- * @param {number} month - Invoice month
- * @param {string} pdfUrl - URL to the PDF file
- * @returns {string} Formatted email body in HTML
+ * @param {string} recipientName - 受信者の名前（「〜様」を付けて表示）
+ * @param {number} year - 請求年
+ * @param {number} month - 請求月
+ * @param {string} pdfUrl - PDFファイルへのURL
+ * @returns {string} HTML形式のメール本文
  */
 function createEmailBody(recipientName, year, month, pdfUrl) {
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("✉️ [開始] メール本文作成");
+  console.log(`📝 宛先: ${recipientName}`);
+  console.log(`📅 対象期間: ${year}年${month}月`);
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+  // HTML形式のメール本文を作成
+  // スタイルを含めることで、メールクライアントで見栄え良く表示されます
   const htmlBody = `
     <div style="font-family: 'Hiragino Sans', 'Meiryo', sans-serif; line-height: 1.6; color: #333;">
+      <!-- 宛名 -->
       <p>${recipientName} 様</p>
 
+      <!-- 挨拶文 -->
       <p>いつもお世話になっております。<br>
       株式会社DROXです。</p>
 
+      <!-- 本文 -->
       <p>${year}年${month}月分の請求書をお送りいたします。<br>
       下記リンクよりご確認ください。</p>
 
+      <!-- PDFリンク（ボタン形式） -->
       <p style="margin: 20px 0;">
         <a href="${pdfUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
           請求書を確認する
         </a>
       </p>
 
+      <!-- PDFリンク（テキスト形式） -->
       <p><strong>請求書リンク：</strong><br>
       <a href="${pdfUrl}" style="color: #0066cc;">${pdfUrl}</a></p>
 
+      <!-- 締めの挨拶 -->
       <p style="margin-top: 30px;">
       ご不明な点がございましたら、お気軽にお問い合わせください。<br>
       今後ともよろしくお願いいたします。</p>
 
+      <!-- 区切り線 -->
       <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
 
+      <!-- 署名 -->
       <p style="font-size: 12px; color: #666;">
       株式会社DROX<br>
       ${SENDER_EMAIL}<br>
@@ -629,5 +930,9 @@ function createEmailBody(recipientName, year, month, pdfUrl) {
     </div>
   `;
 
+  console.log("✅ メール本文作成完了");
+  console.log(`   本文の長さ: ${htmlBody.length}文字`);
+  console.log("✅ [完了] createEmailBody() - 成功");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
   return htmlBody;
 }
