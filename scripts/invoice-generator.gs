@@ -62,6 +62,21 @@ const TEMPLATE_SPREADSHEET_ID = "YOUR_TEMPLATE_SPREADSHEET_ID";
 const TEMPLATE_SHEET_NAME = "Sheet1";
 
 // ============================================================================
+// EMAIL CONFIGURATION
+// ============================================================================
+
+/**
+ * Email Settings
+ *
+ * Configure email sending functionality
+ * Set TEST_MODE to true to avoid actual email sending during testing
+ */
+const EMAIL_ENABLED = true; // Set to false to disable email sending completely
+const TEST_MODE = false; // Set to true to only log emails without sending
+const SENDER_EMAIL = "koki-hata@drox-inc.com"; // Sender email address
+const SENDER_NAME = "株式会社DROX"; // Sender display name
+
+// ============================================================================
 // NOTION API CONFIGURATION
 // ============================================================================
 
@@ -83,6 +98,45 @@ const NOTION_API_VERSION = "2022-06-28";
 // ============================================================================
 
 /**
+ * Get Notion database schema to check property names and types
+ * This helper function can be used to debug property configuration
+ *
+ * @returns {Object} Database schema with properties
+ */
+function getNotionDatabaseSchema() {
+  try {
+    const url = `https://api.notion.com/v1/databases/${NOTION_DATABASE_ID}`;
+
+    const options = {
+      method: "get",
+      headers: {
+        "Authorization": `Bearer ${NOTION_API_KEY}`,
+        "Notion-Version": NOTION_API_VERSION
+      },
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(url, options);
+    const data = JSON.parse(response.getContentText());
+
+    if (response.getResponseCode() === 200) {
+      console.log("=== Notion Database Properties ===");
+      for (const [propName, propConfig] of Object.entries(data.properties)) {
+        console.log(`Property: "${propName}" - Type: ${propConfig.type}`);
+      }
+      console.log("=================================");
+      return data.properties;
+    } else {
+      console.error("Failed to get database schema:", data);
+      return null;
+    }
+  } catch (error) {
+    console.error("Error getting database schema:", error.message);
+    return null;
+  }
+}
+
+/**
  * Fetch hours from Notion database with date range filter
  * Sums up all "hours" property values from entries within the specified date range
  *
@@ -97,6 +151,7 @@ function fetchNotionHours(startDate, endDate) {
     const url = `https://api.notion.com/v1/databases/${NOTION_DATABASE_ID}/query`;
 
     // Construct the filter for date range
+    // Using "and" to filter by both Start Time and End Time
     const payload = {
       filter: {
         and: [
@@ -229,6 +284,8 @@ function createInvoices() {
   let successCount = 0;
   let failureCount = 0;
   let skippedCount = 0;
+  let emailsSentCount = 0;
+  let emailsFailedCount = 0;
 
   console.log(`Starting invoice generation for ${invoiceDataRows.length} row(s)...`);
 
@@ -319,16 +376,40 @@ function createInvoices() {
 
     // 5. Create PDF and save to Google Drive
 
+    let pdfFile = null;
     try {
-      createPdfInDrive(templateSpreadsheet, copiedSheet.getSheetId(), targetFolder, pdfFileName);
+      pdfFile = createPdfInDrive(templateSpreadsheet, copiedSheet.getSheetId(), targetFolder, pdfFileName);
       successCount++;
       console.log(`Invoice ${index + 1}: Successfully created ${pdfFileName}.pdf`);
     } catch (e) {
       failureCount++;
       console.error(`Invoice ${index + 1}: Error creating ${pdfFileName}.pdf - ${e.message}`);
+      templateSpreadsheet.deleteSheet(copiedSheet);
+      return;
     }
 
-    // 6. Delete the temporary working sheet
+    // 6. Send email if enabled and email address is available
+
+    if (EMAIL_ENABLED && pdfFile) {
+      const recipientEmail = invoice.seller_email;
+      const recipientName = invoice.seller_name;
+
+      if (recipientEmail && recipientEmail.includes('@')) {
+        const emailSent = sendInvoiceEmail(recipientEmail, recipientName, pdfFile, formattedDate);
+
+        if (emailSent) {
+          emailsSentCount++;
+          console.log(`Invoice ${index + 1}: Email sent to ${recipientEmail}`);
+        } else {
+          emailsFailedCount++;
+          console.error(`Invoice ${index + 1}: Failed to send email to ${recipientEmail}`);
+        }
+      } else {
+        console.warn(`Invoice ${index + 1}: No valid email address provided, skipping email sending`);
+      }
+    }
+
+    // 7. Delete the temporary working sheet
 
     templateSpreadsheet.deleteSheet(copiedSheet);
   });
@@ -336,9 +417,22 @@ function createInvoices() {
   // Log completion summary
   console.log("\n=== Invoice Generation Complete ===");
   console.log(`Total rows processed: ${invoiceDataRows.length}`);
-  console.log(`✓ Successful: ${successCount}`);
-  console.log(`✗ Failed: ${failureCount}`);
+  console.log(`✓ PDFs created: ${successCount}`);
+  console.log(`✗ PDFs failed: ${failureCount}`);
   console.log(`⊘ Skipped: ${skippedCount}`);
+
+  if (EMAIL_ENABLED) {
+    console.log("\n--- Email Summary ---");
+    console.log(`✓ Emails sent: ${emailsSentCount}`);
+    console.log(`✗ Emails failed: ${emailsFailedCount}`);
+
+    if (TEST_MODE) {
+      console.log("※ TEST MODE was enabled - no emails were actually sent");
+    }
+  } else {
+    console.log("\n※ Email sending is disabled");
+  }
+
   console.log("===================================");
 }
 
@@ -395,5 +489,138 @@ function createPdfInDrive(spreadsheet, sheetId, folder, fileName) {
   const blob = response.getBlob().setName(fileName + ".pdf");
 
   // Create PDF file in folder
-  folder.createFile(blob);
+  const pdfFile = folder.createFile(blob);
+
+  // Return the created PDF file for further processing
+  return pdfFile;
+}
+
+// ============================================================================
+// EMAIL FUNCTIONS
+// ============================================================================
+
+/**
+ * Send invoice email with PDF link
+ *
+ * @param {string} recipientEmail - The recipient's email address
+ * @param {string} recipientName - The recipient's name
+ * @param {File} pdfFile - The PDF file object from Google Drive
+ * @param {string} invoiceDate - The invoice date in YYYY/MM/DD format
+ * @returns {boolean} True if email sent successfully, false otherwise
+ */
+function sendInvoiceEmail(recipientEmail, recipientName, pdfFile, invoiceDate) {
+  try {
+    // Validate email address
+    if (!recipientEmail || !recipientEmail.includes('@')) {
+      console.error(`Invalid email address: ${recipientEmail}`);
+      return false;
+    }
+
+    // Get the sharing URL for the PDF file
+    const pdfUrl = getPdfShareableUrl(pdfFile);
+
+    // Extract year and month from invoice date
+    const dateObj = new Date(invoiceDate);
+    const year = dateObj.getFullYear();
+    const month = dateObj.getMonth() + 1; // getMonth() returns 0-11
+
+    // Email subject
+    const subject = `請求書送付のご案内 [${year}年${month}月分]`;
+
+    // Email body (Japanese business email format)
+    const body = createEmailBody(recipientName, year, month, pdfUrl);
+
+    // Prepare email options
+    const options = {
+      name: SENDER_NAME,
+      htmlBody: body,
+      from: SENDER_EMAIL
+    };
+
+    // Send email or log if in test mode
+    if (TEST_MODE) {
+      console.log("=== TEST MODE: Email would be sent ===");
+      console.log(`To: ${recipientEmail}`);
+      console.log(`Subject: ${subject}`);
+      console.log(`Body: ${body}`);
+      console.log("=====================================");
+      return true;
+    } else {
+      GmailApp.sendEmail(recipientEmail, subject, body, options);
+      console.log(`Email sent successfully to: ${recipientEmail}`);
+      return true;
+    }
+
+  } catch (error) {
+    console.error(`Failed to send email to ${recipientEmail}: ${error.message}`);
+    return false;
+  }
+}
+
+/**
+ * Generate shareable URL for PDF file in Google Drive
+ *
+ * @param {File} pdfFile - The PDF file object
+ * @returns {string} Shareable URL for the PDF
+ */
+function getPdfShareableUrl(pdfFile) {
+  try {
+    // Set sharing permissions - Anyone with the link can view
+    pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    // Get the download URL
+    const fileId = pdfFile.getId();
+    const shareableUrl = `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
+
+    return shareableUrl;
+  } catch (error) {
+    console.error(`Failed to generate shareable URL: ${error.message}`);
+    throw error;
+  }
+}
+
+/**
+ * Create email body with Japanese business format
+ *
+ * @param {string} recipientName - The recipient's name
+ * @param {number} year - Invoice year
+ * @param {number} month - Invoice month
+ * @param {string} pdfUrl - URL to the PDF file
+ * @returns {string} Formatted email body in HTML
+ */
+function createEmailBody(recipientName, year, month, pdfUrl) {
+  const htmlBody = `
+    <div style="font-family: 'Hiragino Sans', 'Meiryo', sans-serif; line-height: 1.6; color: #333;">
+      <p>${recipientName} 様</p>
+
+      <p>いつもお世話になっております。<br>
+      株式会社DROXです。</p>
+
+      <p>${year}年${month}月分の請求書をお送りいたします。<br>
+      下記リンクよりご確認ください。</p>
+
+      <p style="margin: 20px 0;">
+        <a href="${pdfUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+          請求書を確認する
+        </a>
+      </p>
+
+      <p><strong>請求書リンク：</strong><br>
+      <a href="${pdfUrl}" style="color: #0066cc;">${pdfUrl}</a></p>
+
+      <p style="margin-top: 30px;">
+      ご不明な点がございましたら、お気軽にお問い合わせください。<br>
+      今後ともよろしくお願いいたします。</p>
+
+      <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
+
+      <p style="font-size: 12px; color: #666;">
+      株式会社DROX<br>
+      ${SENDER_EMAIL}<br>
+      ※このメールは自動送信されています。
+      </p>
+    </div>
+  `;
+
+  return htmlBody;
 }
