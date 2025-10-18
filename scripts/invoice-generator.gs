@@ -13,22 +13,30 @@
  * Setup Instructions:
  * 1. Create a data spreadsheet with invoice information (see invoice-data.csv for structure)
  * 2. Create a template spreadsheet with placeholders (see invoice-template.csv)
- * 3. Update DATA_SPREADSHEET_ID, TEMPLATE_SPREADSHEET_ID, and OUTPUT_FOLDER_ID
+ * 3. Update DATA_SPREADSHEET_ID, TEMPLATE_SPREADSHEET_ID, and NOTION_API_KEY below
  * 4. Run createInvoices() function
  */
 
 // ============================================================================
+// ENVIRONMENT VARIABLES - UPDATE THESE FIRST
+// ============================================================================
+
+
+const DATA_SPREADSHEET_ID = "";
+
+const TEMPLATE_SPREADSHEET_ID = "";
+
+const NOTION_API_KEY = "";
+
+// ============================================================================
 // CONFIGURATION SECTION
-// Update these values with your own spreadsheet and folder IDs
 // ============================================================================
 
 /**
- * Spreadsheet ID containing invoice data
- * Find it in the URL: https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit
- *
  * The data spreadsheet should have the following columns (in any order):
  * - seller_name: Seller company name
  * - seller_address: Seller address
+ * - seller_email: Email address for invoice delivery
  * - item_1_name: Item description
  * - item_1_number: Item quantity
  * - item_1_price: Item price
@@ -41,19 +49,12 @@
  * Note: Invoice date and PDF filename are automatically generated when creating the PDF
  * PDF filename format: YYYYMMDD_株式会社DROX様_請求書.pdf
  */
-const DATA_SPREADSHEET_ID = "YOUR_DATA_SPREADSHEET_ID";
 
 /**
  * Name of the sheet containing invoice data in the data spreadsheet
  * Default is usually 'Sheet1'
  */
 const DATA_SHEET_NAME = "Sheet1";
-
-/**
- * Spreadsheet ID containing invoice template
- * Find it in the URL: https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit
- */
-const TEMPLATE_SPREADSHEET_ID = "YOUR_TEMPLATE_SPREADSHEET_ID";
 
 /**
  * Name of the sheet containing the invoice template
@@ -81,15 +82,12 @@ const SENDER_NAME = "株式会社DROX"; // Sender display name
 // ============================================================================
 
 /**
- * Notion API Configuration
+ * Notion Database Configuration
  *
- * To set up:
- * 1. Create a Notion integration at https://www.notion.com/my-integrations
- * 2. Copy the integration token (starts with "secret_")
- * 3. Share your Notion database with the integration
- * 4. Replace the values below with your actual credentials
+ * Make sure to:
+ * 1. Set NOTION_API_KEY in the environment variables section above
+ * 2. Share your Notion database with the integration
  */
-const NOTION_API_KEY = "YOUR_NOTION_INTEGRATION_TOKEN"; // Replace with your actual token
 const NOTION_DATABASE_ID = "25143e83afc180cfaa2bff97b74538eb";
 const NOTION_API_VERSION = "2022-06-28";
 
@@ -146,6 +144,12 @@ function getNotionDatabaseSchema() {
  */
 function fetchNotionHours(startDate, endDate) {
   try {
+    // Validate input parameters
+    if (!startDate || !endDate) {
+      console.error(`Invalid date parameters: startDate="${startDate}", endDate="${endDate}"`);
+      throw new Error(`Date parameters are required. Received: startDate="${startDate}", endDate="${endDate}"`);
+    }
+
     console.log(`Fetching hours from Notion for period: ${startDate} to ${endDate}`);
 
     const url = `https://api.notion.com/v1/databases/${NOTION_DATABASE_ID}/query`;
@@ -171,6 +175,9 @@ function fetchNotionHours(startDate, endDate) {
       },
       page_size: 100 // Maximum allowed by Notion API
     };
+
+    // Debug: Log the filter structure
+    console.log("Notion API payload:", JSON.stringify(payload, null, 2));
 
     const options = {
       method: "post",
