@@ -1,126 +1,374 @@
-# Invoice Template Reference
+# 📋 請求書テンプレート詳細説明
 
-## Overview
+このディレクトリには、請求書 PDF 生成に使用する Google スプレッドシートのテンプレートとサンプルデータが含まれています。
 
-This directory contains the Google Sheets invoice template used to generate PDF invoices.
+## 📁 このディレクトリのファイル
 
-## Files in This Directory
+- **invoice-data.csv** - データスプレッドシートのサンプル構造
+- **invoice-template.csv** - テンプレートスプレッドシートのサンプル構造
+- **invoice-template-old.csv** - 旧バージョンのテンプレート（参考用）
 
-- **invoice-data.csv** - Sample invoice data structure for the data spreadsheet
-- **invoice-template.csv** - Invoice template with placeholders
-- **invoice-template-old.csv** - Previous template version for reference (archived)
+## 📊 データスプレッドシートの構造
 
-## Invoice Data Structure
+`invoice-data.csv` ファイルは、データスプレッドシートの構造を示しています。
 
-The `invoice-data.csv` file shows the structure for your data spreadsheet. Your data spreadsheet should have these columns (in any order):
+### 必要な列一覧
 
-| Column Name | Description | Example |
-|------------|-------------|---------|
-| seller_name | Seller company name | 株式会社サンプル商事 |
-| seller_address | Seller address | 東京都渋谷区サンプル町1-2-3 |
-| item_1_name | Item description | Webシステム開発費 |
-| item_1_number | Item quantity | 1 |
-| item_1_price | Item price | 150000 |
-| seller_bank_name | Bank name | サンプル銀行 東京支店(123) |
-| seller_bank_type | Account type | 普通 |
-| seller_bank_number | Account number | 1234567 |
-| seller_bank_holder_name | Account holder | 株式会社サンプル商事 |
-| output_folder_id | **(MANDATORY)** Google Drive Folder ID for saving this invoice | 14iWEOIgVM6iX6NCGn5CP1MLU22ykiTYQ |
+データスプレッドシートには以下の列が必要です（**列の順番は自由**です）：
 
-**Important**:
-- The first row must contain these exact column names (headers). The script uses header-based mapping, so column order doesn't matter.
-- The `output_folder_id` field is **mandatory**. If blank or invalid, the invoice will be skipped with an error logged.
-- Invoice date and PDF filename are automatically generated:
-  - Invoice date: Current date when generating the PDF
-  - PDF filename format: `YYYYMMDD_株式会社DROX様_請求書.pdf` (e.g., `20251014_株式会社DROX様_請求書.pdf`)
+| 列名                    | 説明                                               | 例                                                       |
+| ----------------------- | -------------------------------------------------- | -------------------------------------------------------- |
+| seller_name             | 請求先会社名                                       | 株式会社サンプル A                                       |
+| seller_address          | 請求先住所                                         | 〒 100-0001 東京都千代田区千代田 1-1-1 サンプルビル 5 階 |
+| seller_email            | メール送信先アドレス                               | sample-a@example.com                                     |
+| item_1_name             | 項目名（サービス内容）                             | Web システム開発費                                       |
+| item_1_number           | 数量（作業時間など）                               | 1（または Notion から自動取得）                          |
+| item_1_price            | 単価                                               | 150000                                                   |
+| seller_bank_name        | 銀行名と支店名                                     | 三井住友銀行 東京支店（111）                             |
+| seller_bank_type        | 口座種別                                           | 普通 または 当座                                         |
+| seller_bank_number      | 口座番号                                           | 1234567                                                  |
+| seller_bank_holder_name | 口座名義（カタカナ）                               | カ）サンプルエー                                         |
+| output_folder_id        | **（必須）** PDF 保存先の Google Drive フォルダ ID | 1abc2def3ghi4jkl5mno                                     |
 
-## Template Placeholders
+### サンプルデータ
 
-The template uses the following placeholders that get replaced with actual invoice data:
+```csv
+seller_name,seller_address,seller_email,item_1_name,item_1_number,item_1_price,seller_bank_name,seller_bank_type,seller_bank_number,seller_bank_holder_name,output_folder_id
+株式会社サンプルA,〒100-0001 東京都千代田区千代田1-1-1 サンプルビル5階,sample-a@example.com,Webシステム開発費,1,150000,三井住友銀行 東京支店（111）,普通,1234567,カ）サンプルエー,your-drive-folder-id-here
+株式会社サンプルB,〒150-0001 東京都渋谷区神宮前2-2-2 デモタワー10階,sample-b@example.com,コンサルティング費用,1,200000,みずほ銀行 渋谷支店（222）,普通,9876543,カ）サンプルビー,your-drive-folder-id-here
+フリーランス太郎,〒530-0001 大阪府大阪市北区梅田3-3-3 テストマンション301,taro@example.com,デザイン制作費,1,120000,三菱UFJ銀行 梅田支店（333）,普通,1112223,フリーランスタロウ,your-drive-folder-id-here
+```
 
-### Invoice Details
-| Placeholder | Description | Example Value |
-|------------|-------------|---------------|
-| `{{invoice_date}}` | Invoice date (automatically set to current date) | 2025/10/01 |
+### 📌 重要なポイント
 
-### Seller Information
-| Placeholder | Description | Example Value |
-|------------|-------------|---------------|
-| `{{seller_name}}` | Seller company name | 株式会社サンプル商事 |
-| `{{seller_address}}` | Seller address | 東京都渋谷区サンプル町1-2-3 |
+#### ✅ 必須項目
 
-### Item Details
-| Placeholder | Description | Example Value |
-|------------|-------------|---------------|
-| `{{item_1_name}}` | Item description | システム開発費 |
-| `{{item_1_number}}` | Item quantity | 1 |
-| `{{item_1_price}}` | Item price | 100000 |
+- **1 行目は必ずヘッダー行**（列名）にしてください
+- **`output_folder_id` は必須**です
+  - 空白または無効な ID の場合、その請求書はスキップされエラーログが出力されます
 
-### Bank Information
-| Placeholder | Description | Example Value |
-|------------|-------------|---------------|
-| `{{seller_bank_name}}` | Bank name | サンプル銀行 東京支店(123) |
-| `{{seller_bank_type}}` | Account type | 普通 |
-| `{{seller_bank_number}}` | Account number | 1234567 |
-| `{{seller_bank_holder_name}}` | Account holder | 株式会社サンプル商事 |
+#### 📋 ヘッダーベースマッピング
 
-## Template Structure
+- スクリプトはヘッダー名を使ってデータを識別します
+- **列の順番は自由**に変更できます（ヘッダー名さえ正しければ OK）
 
-The template includes the following sections:
+#### 📅 自動生成される項目
 
-1. **Header**
-   - Title: "請求書" (Invoice)
-   - Client name: 株式会社 DROX (hardcoded) with "御中" (To)
+以下の項目はスクリプト実行時に自動生成されます：
 
-2. **Invoice Information**
-   - Issue date (発行日): `{{invoice_date}}`
-   - Seller company: `{{seller_name}}`
-   - Seller address: `{{seller_address}}`
+- **請求日**: スクリプト実行時の日付（例: 2025/10/18）
+- **PDF ファイル名**: `YYYYMMDD_株式会社DROX様_請求書.pdf`（例: `20251018_株式会社DROX様_請求書.pdf`）
 
-3. **Items Table**
-   - Line items (No. 1-9)
-   - Item 1: `{{item_1_name}}`, `{{item_1_number}}`, `{{item_1_price}}`
-   - Columns: 摘要 (Description), 数量 (Quantity), 単価 (Unit Price), 金額 (Amount)
-   - Subtotal, tax, and total fields (calculated automatically)
+#### 🔗 Google Drive フォルダ ID の取得方法
 
-4. **Payment Information**
-   - Bank name: `{{seller_bank_name}}`
-   - Account type: `{{seller_bank_type}}`
-   - Account number: `{{seller_bank_number}}`
-   - Account holder: `{{seller_bank_holder_name}}`
+1. Google Drive でフォルダを開く
+2. URL を確認します
+   ```
+   https://drive.google.com/drive/folders/【ここがフォルダID】
+   ```
+3. 【ここがフォルダ ID】の部分をコピーして `output_folder_id` に設定
 
-5. **Notes**
-   - Remarks section (備考)
+**例:**
 
-## How It Works
+```
+URL: https://drive.google.com/drive/folders/1abc2def3ghi4jkl5mno
+フォルダID: 1abc2def3ghi4jkl5mno
+```
 
-1. The Google Apps Script (`scripts/invoice-generator.gs`) reads invoice data
-2. It copies this template sheet
-3. Replaces all `{{placeholder}}` values with actual data
-4. Exports the completed sheet as a PDF
-5. Saves the PDF to Google Drive
+## 📄 テンプレートスプレッドシートのプレースホルダー
 
-## Template Setup in Google Sheets
+テンプレートでは、以下のプレースホルダーを使用できます。
+スクリプト実行時に実際のデータに置き換えられます。
 
-To use this template:
+### 📅 請求書情報
 
-1. Create a new Google Sheets document
-2. Import this CSV structure or recreate the layout
-3. Use the placeholders exactly as shown: `{{placeholder_name}}`
-4. Copy the Spreadsheet ID and add it to `TEMPLATE_SPREADSHEET_ID` in the script
+| プレースホルダー   | 説明               | 例         |
+| ------------------ | ------------------ | ---------- |
+| `{{invoice_date}}` | 請求日（自動生成） | 2025/10/01 |
 
-## Customization
+### 🏢 請求先情報
 
-To customize the template:
+| プレースホルダー     | 説明         | 例                         |
+| -------------------- | ------------ | -------------------------- |
+| `{{seller_name}}`    | 請求先会社名 | 株式会社サンプル A         |
+| `{{seller_address}}` | 請求先住所   | 東京都千代田区千代田 1-1-1 |
 
-1. Edit your Google Sheets template directly
-2. Keep the placeholder format: `{{placeholder_name}}`
-3. Match placeholder names with the data fields in `INVOICE_DATA` array
-4. Update formatting, colors, and layout as needed
+### 📦 項目詳細
 
-## Notes
+| プレースホルダー    | 説明                   | 例                                     |
+| ------------------- | ---------------------- | -------------------------------------- |
+| `{{item_1_name}}`   | 項目名（サービス内容） | Web システム開発費                     |
+| `{{item_1_number}}` | 数量（作業時間など）   | 1 または 40（Notion から取得した時間） |
+| `{{item_1_price}}`  | 単価                   | 100000                                 |
 
-- The template must remain in CSV/Google Sheets format
-- Placeholders are case-sensitive
-- Ensure placeholder names match the data field names in the script
-- Template formatting (currency, date formats) is preserved when generating PDFs
+### 🏦 銀行情報
+
+| プレースホルダー              | 説明           | 例                           |
+| ----------------------------- | -------------- | ---------------------------- |
+| `{{seller_bank_name}}`        | 銀行名と支店名 | 三井住友銀行 東京支店（111） |
+| `{{seller_bank_type}}`        | 口座種別       | 普通                         |
+| `{{seller_bank_number}}`      | 口座番号       | 1234567                      |
+| `{{seller_bank_holder_name}}` | 口座名義       | カ）サンプルエー             |
+
+## 🎨 テンプレートの構造
+
+テンプレートスプレッドシートには以下のセクションを含めることができます：
+
+### 1. ヘッダー
+
+- タイトル: 「請求書」（Invoice）
+- 宛先: 株式会社 DROX 御中（固定値）
+  - ※この部分は必要に応じてプレースホルダーに変更可能
+
+### 2. 請求書情報
+
+- 発行日: `{{invoice_date}}`
+- 請求元会社: `{{seller_name}}`
+- 請求元住所: `{{seller_address}}`
+
+### 3. 項目テーブル
+
+- 明細行（No.1〜9 など）
+- 項目 1: `{{item_1_name}}`, `{{item_1_number}}`, `{{item_1_price}}`
+- 列構成:
+  - 摘要（Description）
+  - 数量（Quantity）
+  - 単価（Unit Price）
+  - 金額（Amount）
+- 小計・税・合計欄（自動計算式を設定可能）
+
+### 4. 支払情報
+
+- 銀行名: `{{seller_bank_name}}`
+- 口座種別: `{{seller_bank_type}}`
+- 口座番号: `{{seller_bank_number}}`
+- 口座名義: `{{seller_bank_holder_name}}`
+
+### 5. 備考欄
+
+- 注意事項やメモを記載するセクション
+
+## ⚙️ 処理の仕組み
+
+1. **データ読み込み**: Google Apps Script（`scripts/invoice-generator.gs`）がデータスプレッドシートを読み込む
+2. **テンプレートコピー**: テンプレートシートをコピーして作業用シートを作成
+3. **データ置換**: すべての `{{プレースホルダー}}` を実際のデータに置き換える
+4. **PDF 変換**: 完成したシートを PDF にエクスポート
+5. **保存**: Google Drive に保存
+6. **メール送信**: 請求先にメールで通知
+7. **クリーンアップ**: 作業用シートを削除
+
+## 🚀 テンプレートのセットアップ方法
+
+### ステップ 1: Google スプレッドシートを作成
+
+1. Google Drive で新しい Google スプレッドシートを作成
+2. 請求書のレイアウトをデザイン
+
+### ステップ 2: プレースホルダーを配置
+
+1. データを入れたい場所に `{{プレースホルダー名}}` を入力
+2. プレースホルダーは**完全一致**する必要があります
+   - 例: `{{seller_name}}` ✅
+   - 例: `{{ seller_name }}` ❌（スペースがあるとダメ）
+   - 例: `{{SELLER_NAME}}` ❌（大文字小文字も区別されます）
+
+### ステップ 3: スプレッドシート ID を取得
+
+1. スプレッドシートの URL を確認
+   ```
+   https://docs.google.com/spreadsheets/d/【ここがスプレッドシートID】/edit
+   ```
+2. 【ここがスプレッドシート ID】をコピー
+
+### ステップ 4: スクリプトに設定
+
+`invoice-generator.gs` の `TEMPLATE_SPREADSHEET_ID` に ID を設定
+
+```javascript
+const TEMPLATE_SPREADSHEET_ID = "あなたのテンプレートスプレッドシートID";
+```
+
+## 🎨 カスタマイズ方法
+
+### テンプレートをカスタマイズする
+
+#### デザインの変更
+
+1. Google スプレッドシートで直接編集
+2. フォント、色、罫線を自由に変更
+3. ロゴ画像を挿入（画像は PDF にも反映されます）
+
+#### プレースホルダーの追加
+
+1. テンプレートに新しいプレースホルダーを追加
+   - 例: `{{company_logo}}`, `{{notes}}` など
+2. スクリプトの `createInvoices()` 関数に置換処理を追加
+   ```javascript
+   copiedSheet.createTextFinder("{{company_logo}}").replaceAllWith(invoice.company_logo);
+   ```
+3. データスプレッドシートに対応する列を追加
+
+#### 複数項目に対応
+
+1. テンプレートに `{{item_2_name}}`, `{{item_2_number}}` などを追加
+2. データスプレッドシートに `item_2_name`, `item_2_number` 列を追加
+3. スクリプトに置換処理を追加
+
+### レイアウトのポイント
+
+#### PDF 化を考慮したデザイン
+
+- **用紙サイズ**: A4 サイズを想定（デフォルト設定）
+- **余白**: 上下左右 0.2 インチ（約 5mm）
+- **印刷範囲**: 1 ページに収まるように調整
+
+#### フォーマットの維持
+
+- 通貨フォーマット: `¥123,456` などの書式は PDF に反映されます
+- 日付フォーマット: `2025/10/01` などの書式も保持されます
+- セルの結合や罫線もそのまま反映されます
+
+## 📝 サンプルテンプレート
+
+### シンプルな請求書レイアウト例
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                請求書
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+株式会社DROX 御中
+
+発行日: {{invoice_date}}
+
+【ご請求元】
+{{seller_name}}
+{{seller_address}}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+No. | 摘要 | 数量 | 単価 | 金額
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 1  | {{item_1_name}} | {{item_1_number}} | {{item_1_price}} | (計算式)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+小計: (計算式)
+消費税(10%): (計算式)
+合計: (計算式)
+
+【お振込先】
+{{seller_bank_name}}
+{{seller_bank_type}} {{seller_bank_number}}
+名義: {{seller_bank_holder_name}}
+
+【備考】
+お振込手数料はご負担ください。
+```
+
+## 🔧 注意事項
+
+### プレースホルダーについて
+
+#### ✅ 正しい使い方
+
+```
+{{seller_name}}          ← 正しい
+{{invoice_date}}         ← 正しい
+{{item_1_price}}         ← 正しい
+```
+
+#### ❌ 間違った使い方
+
+```
+{{ seller_name }}        ← スペースあり（NG）
+{{SELLER_NAME}}          ← 大文字（NG）
+{{seller name}}          ← アンダースコアなし（NG）
+{{ {seller_name} }}      ← 二重括弧（NG）
+```
+
+### データフィールドの対応
+
+- **プレースホルダー名**とデータスプレッドシートの**列名**は完全一致する必要があります
+- スクリプトで定義されていないプレースホルダーは置換されません
+- 列名は変更せず、スクリプトで定義された名前を使用してください
+
+### フォーマットの維持
+
+- Google スプレッドシートの書式（通貨、日付など）は PDF に反映されます
+- セルの結合、罫線、背景色なども保持されます
+- ただし、複雑なグラフや関数は PDF 化時に正しく表示されない場合があります
+
+## 📚 関連ドキュメント
+
+- **[メイン README](../README.md)** - プロジェクト概要とクイックスタート
+- **[セットアップガイド](../docs/SETUP_GUIDE.md)** - 詳細なセットアップ手順
+- **[クイックリファレンス](../docs/QUICK_REFERENCE.md)** - よく使う機能の早見表
+
+## 💡 よくある質問
+
+### Q1: テンプレートは 1 つだけですか？
+
+**A:** いいえ、複数のテンプレートを作成できます。
+
+- 案件ごとに異なるテンプレートを使い分けることも可能
+- `TEMPLATE_SPREADSHEET_ID` を切り替えるだけで OK
+
+### Q2: 項目を増やせますか？
+
+**A:** はい、可能です。
+
+1. テンプレートに `{{item_2_name}}` などを追加
+2. データスプレッドシートに `item_2_name` 列を追加
+3. スクリプトに置換処理を追加
+
+### Q3: ロゴ画像を入れられますか？
+
+**A:** はい、可能です。
+
+- Google スプレッドシートに画像を挿入すると PDF にも反映されます
+
+### Q4: 計算式は使えますか？
+
+**A:** はい、使えます。
+
+- 小計や合計は計算式で自動計算できます
+- 例: `=B10*C10` （数量 × 単価）
+
+### Q5: 複数ページの請求書を作れますか？
+
+**A:** はい、可能です。
+
+- テンプレートを複数ページにしても PDF 化されます
+- ただし、通常は 1 ページに収めることを推奨します
+
+## 🎨 デザインのヒント
+
+### プロフェッショナルな請求書を作るコツ
+
+1. **シンプルなレイアウト**
+
+   - 情報を詰め込みすぎない
+   - 適度な余白を確保
+
+2. **明確な情報階層**
+
+   - 重要な情報（金額など）は大きく・太く
+   - 補足情報は小さく
+
+3. **視覚的な区切り**
+
+   - 罫線でセクションを明確に
+   - 背景色で項目を区別
+
+4. **ブランディング**
+
+   - 会社のロゴを配置
+   - ブランドカラーを使用
+
+5. **可読性**
+   - 読みやすいフォント（游ゴシック、メイリオなど）
+   - 適切なフォントサイズ（本文は 10〜12pt）
+
+---
+
+🎨 テンプレートを自由にカスタマイズして、あなただけの請求書を作成しましょう！
