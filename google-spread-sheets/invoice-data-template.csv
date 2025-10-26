@@ -1,0 +1,9 @@
+seller_name,invoice_needed,seller_address,seller_email,item_1_name,item_1_price,seller_bank_name,seller_bank_type,seller_bank_number,seller_bank_holder_name,output_folder_id,notion_user_id
+株式会社サンプルA,TRUE,〒100-0001 東京都千代田区千代田1-1-1 サンプルビル5階,sample-a@example.com,Webシステム開発費,150000,三井住友銀行 東京支店（111）,普通,1234567,カ）サンプルエー,your-drive-folder-id-here,6343bcd2-56f7-47f8-ad62-98a79fc5060f
+株式会社サンプルB,TRUE,〒150-0001 東京都渋谷区神宮前2-2-2 デモタワー10階,sample-b@example.com,コンサルティング費用,200000,みずほ銀行 渋谷支店（222）,普通,9876543,カ）サンプルビー,your-drive-folder-id-here,8b60bfbc-e068-4a4f-b832-9f45a7d53319
+フリーランス太郎,FALSE,〒530-0001 大阪府大阪市北区梅田3-3-3 テストマンション301,taro@example.com,デザイン制作費,120000,三菱UFJ銀行 梅田支店（333）,普通,1112223,フリーランスタロウ,your-drive-folder-id-here,28fd872b-594c-8100-9172-000286d6eed8
+株式会社デモカンパニー,FALSE,〒220-0011 神奈川県横浜市西区高島2-4-5 サンプルプラザ8階,demo@example.com,システム保守費,180000,三井住友銀行 横浜支店（444）,普通,2223334,カ）デモカンパニー,your-drive-folder-id-here,33ac3185-89ec-4ffc-bfdd-5ac1a00e4751
+テスト株式会社,FALSE,〒460-0008 愛知県名古屋市中区栄3-5-6 テストビル12階,test@example.com,マーケティング支援費,250000,三菱UFJ銀行 名古屋支店（555）,普通,3334445,カ）テスト,your-drive-folder-id-here,e923536a-bd6d-4fdb-b566-a0be70728049
+サンプル合同会社,FALSE,〒810-0001 福岡県福岡市中央区天神4-6-7 デモセンター3階,sample-llc@example.com,研修実施費,160000,みずほ銀行 福岡支店（666）,普通,4445556,ゴウ）サンプル,your-drive-folder-id-here,212d872b-594c-81be-88e3-000218a95394
+フリーランス花子,FALSE,〒980-0021 宮城県仙台市青葉区中央1-2-3 サンプルハイツ502,hanako@example.com,ライティング費用,95000,三井住友銀行 仙台支店（777）,普通,5556667,フリーランスハナコ,your-drive-folder-id-here,1d2d872b-594c-81aa-90d6-0002e3adb2f5
+株式会社テストシステムズ,FALSE,〒060-0002 北海道札幌市中央区北2条西3-8-9 デモビルディング6階,test-systems@example.com,開発支援費,300000,北海道銀行 札幌支店（888）,普通,6667778,カ）テストシステムズ,your-drive-folder-id-here,243d872b-594c-81a7-98dc-0002396cbc55
