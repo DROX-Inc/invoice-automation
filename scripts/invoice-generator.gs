@@ -579,15 +579,15 @@ function createInvoices() {
     console.log("  ⏰ Notionから作業時間を取得中...");
     let itemNumber = 0; // デフォルトは0時間
 
-    // 日付から月/日形式の項目名を生成（例: システム開発費(09/01 ~ 09/30)）
+    // 日付から年/月/日形式の項目名を生成（例: システム開発費(2025/08/01 ~ 2025/08/31)）
     // TODO: 将来的には動的に日付を設定できるようにする
-    const startDate = "2025-09-01";
-    const endDate = "2025-09-30";
+    const startDate = "2025-08-01";
+    const endDate = "2025-08-31";
     const startParts = startDate.split("-");
     const endParts = endDate.split("-");
-    const startMonthDay = `${startParts[1]}/${startParts[2]}`;
-    const endMonthDay = `${endParts[1]}/${endParts[2]}`;
-    const itemName = `システム開発費(${startMonthDay} ~ ${endMonthDay})`;
+    const startYMD = `${startParts[0]}/${startParts[1]}/${startParts[2]}`;
+    const endYMD = `${endParts[0]}/${endParts[1]}/${endParts[2]}`;
+    const itemName = `システム開発費(${startYMD} ~ ${endYMD})`;
 
     // notion_user_idの検証
     if (!invoice.notion_user_id || invoice.notion_user_id.trim() === "") {
@@ -911,12 +911,12 @@ function sendInvoiceEmail(recipientEmail, recipientName, pdfFile, invoiceDate, s
     console.log("🔗 PDF共有URLを生成中...");
     const pdfUrl = getPdfShareableUrl(pdfFile);
 
-    // ステップ3: 対象期間を月/日形式に変換（例: 09/01 ~ 09/30）
+    // ステップ3: 対象期間を年/月/日形式に変換（例: 2025/08/01 ~ 2025/08/31）
     const startParts = startDate.split("-");
     const endParts = endDate.split("-");
-    const startMonthDay = `${startParts[1]}/${startParts[2]}`;
-    const endMonthDay = `${endParts[1]}/${endParts[2]}`;
-    const periodText = `${startMonthDay} ~ ${endMonthDay}`;
+    const startYMD = `${startParts[0]}/${startParts[1]}/${startParts[2]}`;
+    const endYMD = `${endParts[0]}/${endParts[1]}/${endParts[2]}`;
+    const periodText = `${startYMD} ~ ${endYMD}`;
     console.log(`✓ 対象期間: ${periodText}`);
 
     // ステップ4: メールの件名を作成
@@ -925,7 +925,7 @@ function sendInvoiceEmail(recipientEmail, recipientName, pdfFile, invoiceDate, s
 
     // ステップ5: メール本文を作成（HTML形式）
     console.log("✍️ メール本文を作成中...");
-    const body = createEmailBody(recipientName, startMonthDay, endMonthDay, pdfUrl);
+    const body = createEmailBody(recipientName, startYMD, endYMD, pdfUrl);
 
     // ステップ6: メールオプションを設定
     const options = {
@@ -1012,16 +1012,16 @@ function getPdfShareableUrl(pdfFile) {
  * - PDF閲覧用のボタンとリンクを含めます
  *
  * @param {string} recipientName - 受信者の名前（「〜様」を付けて表示）
- * @param {string} startMonthDay - 対象期間開始日（MM/DD形式）
- * @param {string} endMonthDay - 対象期間終了日（MM/DD形式）
+ * @param {string} startYMD - 対象期間開始日（YYYY/MM/DD形式）
+ * @param {string} endYMD - 対象期間終了日（YYYY/MM/DD形式）
  * @param {string} pdfUrl - PDFファイルへのURL
  * @returns {string} HTML形式のメール本文
  */
-function createEmailBody(recipientName, startMonthDay, endMonthDay, pdfUrl) {
+function createEmailBody(recipientName, startYMD, endYMD, pdfUrl) {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("✉️ [開始] メール本文作成");
   console.log(`📝 宛先: ${recipientName}`);
-  console.log(`📅 対象期間: ${startMonthDay} ~ ${endMonthDay}`);
+  console.log(`📅 対象期間: ${startYMD} ~ ${endYMD}`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   // HTML形式のメール本文を作成
@@ -1036,7 +1036,7 @@ function createEmailBody(recipientName, startMonthDay, endMonthDay, pdfUrl) {
       株式会社DROXです。</p>
 
       <!-- 本文 -->
-      <p>${startMonthDay} ~ ${endMonthDay}分の請求書をお送りいたします。<br>
+      <p>${startYMD} ~ ${endYMD}分の請求書をお送りいたします。<br>
       下記リンクよりご確認ください。</p>
 
       <!-- PDFリンク（ボタン形式） -->
