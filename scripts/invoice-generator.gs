@@ -1016,15 +1016,15 @@ function createEmailBody(recipientName, year, month, pdfUrl) {
 
       <!-- PDFリンク（ボタン形式） -->
       <p style="margin: 20px 0;">
-        <a href="${pdfUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+        <a href="${pdfUrl}" style="background-color: #2563EB; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 500;">
           請求書を確認する
         </a>
       </p>
 
       <!-- 確認依頼（目立つ形式） -->
-      <div style="background-color: #FFF3CD; border: 2px solid #FFC107; border-radius: 8px; padding: 20px; margin: 30px 0; text-align: center;">
-        <p style="font-size: 14px; color: #856404; margin: 0;">
-          問題なければ、<strong style="font-size: 18px; color: #D97706;">「OK DROX!」</strong>と返信お願いします。
+      <div style="background-color: #EFF6FF; border: 2px solid #3B82F6; border-radius: 8px; padding: 20px; margin: 30px 0; text-align: center;">
+        <p style="font-size: 14px; color: #1E40AF; margin: 0;">
+          問題なければ、<strong style="font-size: 18px; color: #1D4ED8;">「OK DROX!」</strong>と返信お願いします。
         </p>
       </div>
 
