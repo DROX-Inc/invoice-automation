@@ -235,21 +235,23 @@ function getNotionDatabaseSchema() {
 }
 
 /**
- * Notionデータベースから指定期間の作業時間を取得する関数
- * 【機能】指定した日付範囲内のすべての"hours"プロパティの値を合計します
+ * Notionデータベースから指定期間・特定ユーザーの作業時間を取得する関数
+ * 【機能】指定した日付範囲内かつ指定ユーザーの"hours"プロパティの値を合計します
  * 【初心者向け説明】
  * - Notionデータベースに記録されている作業時間を自動で集計します
- * - 例: 2025年10月1日〜31日の間に記録された作業時間をすべて足し算します
+ * - 例: 2025年10月1日〜31日の間に特定のメンバーが記録した作業時間をすべて足し算します
  * - 請求書の作業時間を手動で計算する必要がなくなります
  *
  * @param {string} startDate - 開始日（YYYY-MM-DD形式、例: "2025-10-01"）
  * @param {string} endDate - 終了日（YYYY-MM-DD形式、例: "2025-10-31"）
+ * @param {string} notionUserId - NotionユーザーID（UUID形式）
  * @returns {number} 合計作業時間（時間単位）
  */
-function fetchNotionHours(startDate, endDate) {
+function fetchNotionHours(startDate, endDate, notionUserId) {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("📊 [開始] Notionから作業時間を取得します");
   console.log(`📅 対象期間: ${startDate} 〜 ${endDate}`);
+  console.log(`👤 対象ユーザーID: ${notionUserId}`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   try {
@@ -260,7 +262,11 @@ function fetchNotionHours(startDate, endDate) {
       console.error(`❌ 日付パラメータが無効です: 開始日="${startDate}", 終了日="${endDate}"`);
       throw new Error(`日付パラメータが必須です。受信値: 開始日="${startDate}", 終了日="${endDate}"`);
     }
-    console.log("✅ 日付パラメータの検証完了");
+    if (!notionUserId) {
+      console.error(`❌ NotionユーザーIDが無効です: "${notionUserId}"`);
+      throw new Error(`NotionユーザーIDが必須です。受信値: "${notionUserId}"`);
+    }
+    console.log("✅ パラメータの検証完了");
 
     // --------------------------------------------------------------------------
     // ▼ STEP 2: APIリクエストの準備 ▼
@@ -286,6 +292,12 @@ function fetchNotionHours(startDate, endDate) {
             property: "End Time", // データベースの「End Time」という名前のプロパティを対象にします。
             date: {
               on_or_before: endDate, // その日付が `endDate` 以前であること。
+            },
+          },
+          {
+            property: "User", // データベースの「User」プロパティ（people型）を対象にします。
+            people: {
+              contains: notionUserId, // 指定されたユーザーIDを含むこと。
             },
           },
         ],
@@ -565,27 +577,35 @@ function createInvoices() {
     // ステップ4-3: Notionから作業時間を取得（重要！）
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     console.log("  ⏰ Notionから作業時間を取得中...");
-    let itemNumber = invoice.item_1_number; // デフォルトはスプレッドシートの値
+    let itemNumber = 0; // デフォルトは0時間
 
-    try {
-      // TODO: 将来的には動的に日付を設定できるようにする
-      // 現在は固定値を使用
-      const startDate = "2025-10-01";
-      const endDate = "2025-10-31";
+    // notion_user_idの検証
+    if (!invoice.notion_user_id || invoice.notion_user_id.trim() === "") {
+      console.warn(`  ⚠️ notion_user_idが指定されていません。Notionからのデータ取得をスキップします`);
+      console.log(`  ℹ️ 作業時間: 0時間（データなし）`);
+    } else {
+      try {
+        // TODO: 将来的には動的に日付を設定できるようにする
+        // 現在は固定値を使用
+        const startDate = "2025-10-01";
+        const endDate = "2025-10-31";
 
-      console.log(`  📊 対象期間: ${startDate} 〜 ${endDate}`);
-      const notionHours = fetchNotionHours(startDate, endDate);
+        console.log(`  📊 対象期間: ${startDate} 〜 ${endDate}`);
+        console.log(`  👤 対象ユーザー: ${invoice.seller_name} (ID: ${invoice.notion_user_id})`);
 
-      if (notionHours !== null && notionHours !== undefined) {
-        itemNumber = notionHours;
-        console.log(`  ✅ Notionから取得した作業時間を使用: ${notionHours}時間`);
-      } else {
-        console.log(`  ⚠️ Notionからデータが取得できませんでした。スプレッドシートの値を使用: ${itemNumber}時間`);
+        const notionHours = fetchNotionHours(startDate, endDate, invoice.notion_user_id);
+
+        if (notionHours !== null && notionHours !== undefined) {
+          itemNumber = notionHours;
+          console.log(`  ✅ Notionから取得した作業時間を使用: ${notionHours}時間`);
+        } else {
+          console.log(`  ⚠️ Notionからデータが取得できませんでした。作業時間: 0時間`);
+        }
+      } catch (notionError) {
+        console.error(`  ❌ Notionデータの取得に失敗しました。作業時間: 0時間`);
+        console.error(`  エラー詳細: ${notionError.message}`);
+        // エラーが発生しても0時間で続行
       }
-    } catch (notionError) {
-      console.error(`  ❌ Notionデータの取得に失敗しました。スプレッドシートの値を使用します`);
-      console.error(`  エラー詳細: ${notionError.message}`);
-      // エラーが発生してもスプレッドシートの値で続行
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
