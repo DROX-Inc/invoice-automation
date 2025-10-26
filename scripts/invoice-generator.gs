@@ -63,6 +63,7 @@ const NOTION_API_KEY = "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";
  * - seller_bank_number: 口座番号
  * - seller_bank_holder_name: 口座名義
  * - output_folder_id: （必須）PDFを保存するGoogle DriveフォルダのID
+ * - invoice_needed: （TRUEなら送信、FALSEなら送信しない）
  *
  * 【自動生成される項目】
  * - 請求日: スクリプト実行時の日付が自動設定されます
@@ -509,6 +510,18 @@ function createInvoices() {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   invoiceDataRows.forEach((invoice, index) => {
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // ステップ4-0: invoice_needed の値を確認してスキップ
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    if (invoice.invoice_needed === false || String(invoice.invoice_needed).toUpperCase() === "FALSE") {
+      skippedCount++;
+      console.log("┌────────────────────────────────────────────────────────────┐");
+      console.log(`│  請求書 ${index + 1}/${invoiceDataRows.length} はスキップされました (invoice_needed: ${invoice.invoice_needed})   │`);
+      console.log(`│  宛先: ${invoice.seller_name}                                  `);
+      console.log("└────────────────────────────────────────────────────────────┘\n");
+      return; // この請求書の処理をスキップ
+    }
+
     console.log("┌────────────────────────────────────────────────────────────┐");
     console.log(`│  請求書 ${index + 1}/${invoiceDataRows.length} の作成を開始                                    │`);
     console.log(`│  宛先: ${invoice.seller_name}                                  `);
