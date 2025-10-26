@@ -39,11 +39,11 @@
 // ============================================================================
 // ⚙️ 環境変数 - 最初にここを設定してください！（必須）
 // ============================================================================
-const DATA_SPREADSHEET_ID =
+const DATA_SPREADSHEET_ID = "1DkBGmXr-pikyMTxfSE8JJz7bC4puP5VWNTsr4bc9wVM";
 
-const TEMPLATE_SPREADSHEET_ID = 
+const TEMPLATE_SPREADSHEET_ID = "1-5wrC7TifKZEY9d-rnPh4cfyrkL3B8al1-yug4GIQTw";
 
-const NOTION_API_KEY = 
+const NOTION_API_KEY = "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";
 // ============================================================================
 // 📋 設定セクション
 // ============================================================================
