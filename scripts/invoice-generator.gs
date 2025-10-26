@@ -304,7 +304,11 @@ function fetchNotionHours(startDate, endDate) {
 
       // レスポンスコードが200以外の場合はエラー
       if (responseCode !== 200) {
-        console.error(`❌ Notion APIエラー: ${response.getContentText()}`);
+        const errorResponse = response.getContentText();
+        console.error(`❌ Notion APIがエラーを返しました。ステータスコード: ${responseCode}`);
+        console.error("--- Notionからのエラーレスポンス START ---");
+        console.error(errorResponse);
+        console.error("--- Notionからのエラーレスポンス END ---");
         throw new Error(`Notion APIがエラーコードを返しました: ${responseCode}`);
       }
 
