@@ -164,44 +164,71 @@ function getNotionDatabaseSchema() {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   try {
-    // Notion APIのエンドポイントURL
-    // データベースIDを使ってデータベース情報を取得します
+    // --------------------------------------------------------------------------
+    // ▼ STEP 1: APIリクエストの準備 ▼
+    // --------------------------------------------------------------------------
+    // Notion APIからデータベースの情報を取得するためのURLを組み立てます。
+    // このURLは、どのデータベースの情報を取得したいかをNotionに伝えるためのものです。
     const url = `https://api.notion.com/v1/databases/${NOTION_DATABASE_ID}`;
+    console.log(`構築されたURL: ${url}`);
 
-    // APIリクエストのオプション設定
+    // APIリクエストに必要な設定（オプション）を定義します。
     const options = {
-      method: "get", // GETメソッド（データを取得するだけ）
+      method: "get", // 'get'は「データを取得する」という意味のHTTPメソッドです。
       headers: {
-        Authorization: `Bearer ${NOTION_API_KEY}`, // 認証トークン
-        "Notion-Version": NOTION_API_VERSION, // Notion APIのバージョン
+        // ヘッダー：リクエストに関する追加情報
+        // Authorization: APIを利用するための「認証キー」です。これにより、Notionは誰からのリクエストかを識別します。
+        Authorization: `Bearer ${NOTION_API_KEY}`,
+        // Notion-Version: 使用するNotion APIのバージョンを指定します。
+        "Notion-Version": NOTION_API_VERSION,
       },
-      muteHttpExceptions: true, // エラーでも例外を投げずに続行
+      // muteHttpExceptions: trueに設定すると、APIがエラーを返した場合（例：404 Not Found）でも
+      // スクリプトが停止せず、後続のコードでエラー処理を行えるようになります。
+      muteHttpExceptions: true,
     };
+    console.log("リクエストヘッダー:", options.headers);
 
+    // --------------------------------------------------------------------------
+    // ▼ STEP 2: Notion APIへのリクエスト送信 ▼
+    // --------------------------------------------------------------------------
     console.log("📡 Notion APIにリクエストを送信中...");
+    // UrlFetchApp.fetch() を使って、実際にNotion APIにリクエストを送信します。
     const response = UrlFetchApp.fetch(url, options);
-    const data = JSON.parse(response.getContentText());
+    const responseCode = response.getResponseCode();
+    const responseBody = response.getContentText();
+    console.log(`📬 Notion APIからの応答ステータスコード: ${responseCode}`);
 
-    // レスポンスコードが200（成功）の場合
-    if (response.getResponseCode() === 200) {
-      console.log("✅ データベース情報の取得に成功しました");
+    // --------------------------------------------------------------------------
+    // ▼ STEP 3: レスポンスの処理 ▼
+    // --------------------------------------------------------------------------
+    // レスポンスコードが200の場合、リクエストは成功です。
+    if (responseCode === 200) {
+      console.log("✅ データベース情報の取得に成功しました。");
+      // 応答データ（JSON形式のテキスト）をオブジェクトに変換します。
+      const data = JSON.parse(responseBody);
+
       console.log("=== データベースのプロパティ一覧 ===");
-
-      // 各プロパティの名前と型をログに出力
+      // 取得したデータからプロパティ情報を取り出し、名前と型をログに出力します。
+      // これにより、データベースにどのような列があるかを確認できます。
       for (const [propName, propConfig] of Object.entries(data.properties)) {
-        console.log(`📋 プロパティ名: "${propName}" - 型: ${propConfig.type}`);
+        console.log(`  - 📋 プロパティ名: "${propName}", 型: ${propConfig.type}`);
       }
       console.log("====================================");
       console.log("✅ [完了] getNotionDatabaseSchema() - 成功");
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
       return data.properties;
     } else {
-      console.error("❌ データベーススキーマの取得に失敗しました:", data);
+      // 200以外のコードはエラーを示します。
+      console.error(`❌ データベーススキーマの取得に失敗しました。ステータスコード: ${responseCode}`);
+      console.error("--- Notionからのエラーレスポンス START ---");
+      console.error(responseBody);
+      console.error("--- Notionからのエラーレスポンス END ---");
+      console.error("💡 ヒント: NOTION_API_KEY または NOTION_DATABASE_ID が間違っている可能性があります。");
       return null;
     }
   } catch (error) {
-    console.error("❌ エラーが発生しました:", error.message);
-    console.error("💡 ヒント: NOTION_API_KEYとNOTION_DATABASE_IDが正しく設定されているか確認してください");
+    console.error("❌ スクリプト実行中に予期せぬエラーが発生しました:", error.message);
+    console.error("💡 ヒント: インターネット接続またはGoogle Apps Scriptのサービスに問題がある可能性があります。");
     return null;
   }
 }
@@ -225,145 +252,171 @@ function fetchNotionHours(startDate, endDate) {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   try {
-    // ステップ1: 入力パラメータの検証
-    // 日付が正しく指定されているかチェックします
+    // --------------------------------------------------------------------------
+    // ▼ STEP 1: 入力パラメータの検証 ▼
+    // --------------------------------------------------------------------------
     if (!startDate || !endDate) {
       console.error(`❌ 日付パラメータが無効です: 開始日="${startDate}", 終了日="${endDate}"`);
       throw new Error(`日付パラメータが必須です。受信値: 開始日="${startDate}", 終了日="${endDate}"`);
     }
+    console.log("✅ 日付パラメータの検証完了");
 
-    console.log(`🔍 Notionから ${startDate} 〜 ${endDate} の期間の作業時間を取得中...`);
-
-    // ステップ2: Notion APIのエンドポイントURL
+    // --------------------------------------------------------------------------
+    // ▼ STEP 2: APIリクエストの準備 ▼
+    // --------------------------------------------------------------------------
+    // Notionデータベースから情報を「問い合わせ（クエリ）」するためのURLです。
     const url = `https://api.notion.com/v1/databases/${NOTION_DATABASE_ID}/query`;
+    console.log(`構築されたURL: ${url}`);
 
-    // ステップ3: フィルター条件を設定
-    // 日付範囲でデータをフィルタリングします
-    // "Start Time"が開始日以降 かつ "End Time"が終了日以前 のデータを取得
+    // Notionに「どのようなデータが欲しいか」を伝えるための条件（ペイロード）を作成します。
+    // これは、データベースから特定の条件に合うデータだけを絞り込むために使います。
     const payload = {
+      // `filter`：データを絞り込むための条件を指定します。
       filter: {
+        // `and`：ここに列挙されたすべての条件を満たすデータのみを取得します。
         and: [
-          // "and"条件: 両方の条件を満たす必要がある
           {
-            property: "Start Time", // 開始時刻プロパティ
+            property: "Start Time", // データベースの「Start Time」という名前のプロパティを対象にします。
             date: {
-              on_or_after: startDate, // 指定開始日以降
+              on_or_after: startDate, // その日付が `startDate` 以降であること。
             },
           },
           {
-            property: "End Time", // 終了時刻プロパティ
+            property: "End Time", // データベースの「End Time」という名前のプロパティを対象にします。
             date: {
-              on_or_before: endDate, // 指定終了日以前
+              on_or_before: endDate, // その日付が `endDate` 以前であること。
             },
           },
         ],
       },
-      page_size: 100, // 1回のリクエストで最大100件取得（Notion APIの上限）
+      // `page_size`：1回のリクエストで取得するデータの上限数。Notion APIの最大値は100です。
+      page_size: 100,
     };
 
-    // デバッグ用: フィルター内容をログに出力
-    console.log("📤 送信するフィルター条件:", JSON.stringify(payload, null, 2));
+    console.log("📤 Notionに送信するフィルター条件（ペイロード）:", JSON.stringify(payload, null, 2));
 
-    // ステップ4: APIリクエストのオプション設定
+    // APIリクエストに必要な設定（オプション）を定義します。
     const options = {
-      method: "post", // POSTメソッド（データをクエリする）
+      method: "post", // 'post'は「データを問い合わせる・作成する」などの操作で使います。今回はクエリなのでpostです。
       headers: {
-        Authorization: `Bearer ${NOTION_API_KEY}`, // 認証トークン
-        "Notion-Version": NOTION_API_VERSION, // APIバージョン
-        "Content-Type": "application/json", // JSON形式で送信
+        Authorization: `Bearer ${NOTION_API_KEY}`,
+        "Notion-Version": NOTION_API_VERSION,
+        "Content-Type": "application/json", // 送信するデータがJSON形式であることを示します。
       },
-      payload: JSON.stringify(payload), // リクエストボディ
-      muteHttpExceptions: true, // エラーでも例外を投げずに続行
+      // `payload`：上で作成したフィルター条件を、JSON形式の文字列に変換して設定します。
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true,
     };
+    console.log("リクエストヘッダー:", options.headers);
 
-    // ステップ5: 変数の初期化
-    let totalHours = 0; // 合計時間を格納する変数
-    let hasMore = true; // まだデータがあるかどうかのフラグ
-    let nextCursor = null; // 次のページを取得するためのカーソル
-    let pageCount = 0; // 取得したページ数（ログ用）
+    // --------------------------------------------------------------------------
+    // ▼ STEP 3: データ取得とページネーション処理 ▼
+    // --------------------------------------------------------------------------
+    let totalHours = 0;
+    let hasMore = true; // 次のページがあるかどうかを示すフラグ
+    let nextCursor = null; // 次のページの開始位置を示すID
+    let pageCount = 0;
 
-    // ステップ6: ページネーション処理
-    // Notion APIは1回のリクエストで最大100件しか返さないため、
-    // 100件以上ある場合は複数回リクエストを送る必要があります
-    console.log("🔄 データ取得ループを開始...");
+    console.log("🔄 データ取得ループを開始します（結果が100件を超える場合、複数回リクエストされます）");
+    // `hasMore`がtrueである限り、ループを続けます。
     while (hasMore) {
       pageCount++;
+      console.log(`\n📄 ページ ${pageCount} の取得処理を開始...`);
 
-      // 2ページ目以降の場合、カーソルを設定
+      // 2ページ目以降の場合、`start_cursor`をペイロードに追加して、前回の続きからデータを取得します。
       if (nextCursor) {
-        console.log(`📄 ページ ${pageCount} を取得中...`);
+        console.log(`   ...前回の続きから取得します (cursor: ${nextCursor})`);
         payload.start_cursor = nextCursor;
-        options.payload = JSON.stringify(payload);
-      } else {
-        console.log(`📄 ページ 1 を取得中...`);
+        options.payload = JSON.stringify(payload); // ペイロードを更新
       }
 
       // APIリクエストを送信
+      console.log(`   📡 Notion APIにページ ${pageCount} のデータをリクエスト...`);
       const response = UrlFetchApp.fetch(url, options);
       const responseCode = response.getResponseCode();
+      const responseBody = response.getContentText();
+      console.log(`   📬 Notion APIからの応答ステータスコード: ${responseCode}`);
 
-      // レスポンスコードが200以外の場合はエラー
       if (responseCode !== 200) {
-        const errorResponse = response.getContentText();
         console.error(`❌ Notion APIがエラーを返しました。ステータスコード: ${responseCode}`);
         console.error("--- Notionからのエラーレスポンス START ---");
-        console.error(errorResponse);
+        console.error(responseBody);
         console.error("--- Notionからのエラーレスポンス END ---");
         throw new Error(`Notion APIがエラーコードを返しました: ${responseCode}`);
       }
 
-      const data = JSON.parse(response.getContentText());
-      console.log(`✅ ページ ${pageCount} を取得しました（${data.results.length}件）`);
+      const data = JSON.parse(responseBody);
+      console.log(`   ✅ ページ ${pageCount} のデータを取得しました（${data.results.length}件）`);
 
-      // ステップ7: 各エントリの作業時間を合計
+      // --------------------------------------------------------------------------
+      // ▼ STEP 4: 取得したデータの処理 ▼
+      // --------------------------------------------------------------------------
       if (data.results && data.results.length > 0) {
-        let pageHours = 0; // このページの合計時間
+        // 最初のページの最初のアイテムの構造をログに出力
+        if (pageCount === 1 && data.results.length > 0) {
+          console.log("🔍 [デバッグ情報] 最初のページの最初のアイテムのデータ構造:");
+          console.log(JSON.stringify(data.results[0], null, 2));
+        }
 
+        let pageHours = 0;
+
+        // 取得した各データ（ページ）に対して処理を行います。
         data.results.forEach((page, index) => {
+          const pageId = page.id;
+          let hoursValue = 0;
           try {
-            // "hours"プロパティにアクセス
-            // （データベース内でプロパティ名が異なる場合は変更してください）
-            if (page.properties && page.properties.hours) {
-              let hoursValue = 0;
-
-              // プロパティの型に応じて値を取得
-              // Notionでは"number"型と"formula"型がある
-              if (page.properties.hours.type === "number") {
-                hoursValue = page.properties.hours.number || 0;
-              } else if (page.properties.hours.type === "formula") {
-                hoursValue = page.properties.hours.formula.number || 0;
+            // `page.properties.hours` に作業時間のデータが格納されています。
+            const hoursProperty = page.properties.hours;
+            if (hoursProperty) {
+              // プロパティの型（'number'または'formula'）に応じて値を取得します。
+              if (hoursProperty.type === "number") {
+                hoursValue = hoursProperty.number || 0;
+              } else if (hoursProperty.type === "formula") {
+                // フォーミュラ型の場合、計算結果が `formula.number` に入っています。
+                hoursValue = hoursProperty.formula.number || 0;
               }
-
+              // console.log(`     - item ${index + 1} (ID: ${pageId}): ${hoursValue.toFixed(2)} 時間`); // 個別の時間はデバッグ情報で確認できるため、コメントアウト
               pageHours += hoursValue;
-              totalHours += hoursValue;
+            } else {
+              console.warn(`     - item ${index + 1} (ID: ${pageId}): 'hours' プロパティが見つかりません。`);
             }
           } catch (e) {
-            console.error(`❌ エントリ処理中にエラー: ${e.message}`);
+            console.error(`     - item ${index + 1} (ID: ${pageId}): データ処理中にエラーが発生しました: ${e.message}`);
           }
         });
 
-        console.log(`   → このページの合計: ${pageHours.toFixed(2)}時間`);
+        totalHours += pageHours;
+        console.log(`   👉 このページの合計時間: ${pageHours.toFixed(2)}時間`);
+        console.log(`   累計: ${totalHours.toFixed(2)}時間`);
       }
 
-      // ステップ8: 次のページがあるかチェック
+      // --------------------------------------------------------------------------
+      // ▼ STEP 5: 次のページの有無を確認 ▼
+      // --------------------------------------------------------------------------
+      // レスポンスに `has_more: true` が含まれている場合、まだ続きのデータがあります。
       hasMore = data.has_more || false;
+      // `next_cursor` は、次のリクエストでどこからデータを取得すればよいかを示すIDです。
       nextCursor = data.next_cursor || null;
 
       if (hasMore) {
-        console.log("   → まだデータがあります。次のページを取得します...");
+        console.log("   ...まだデータがあります。次のページを取得します。");
       } else {
-        console.log("   → すべてのデータを取得しました");
+        console.log("   ...すべてのデータを取得しました。");
       }
     }
 
-    console.log(`✅ 合計作業時間: ${totalHours.toFixed(2)}時間（全${pageCount}ページから取得）`);
+    console.log("\n" + "─".repeat(50));
+    console.log(`✅ [成功] 全ページの作業時間の合計が完了しました。`);
+    console.log(`   - 取得ページ数: ${pageCount}ページ`);
+    console.log(`   - 合計作業時間: ${totalHours.toFixed(2)}時間`);
+    console.log("─".repeat(50) + "\n");
     console.log("✅ [完了] fetchNotionHours() - 成功");
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
     return totalHours;
   } catch (error) {
-    console.error(`❌ Notionからのデータ取得に失敗しました: ${error.message}`);
+    console.error(`❌ Notionからのデータ取得中に致命的なエラーが発生しました: ${error.message}`);
     console.error(
-      "💡 ヒント: Notion APIキー、データベースID、プロパティ名（hours, Start Time, End Time）を確認してください"
+      "💡 ヒント: Notion APIキー、データベースID、プロパティ名（hours, Start Time, End Time）が正しいか、またインテグレーションがデータベースに共有されているかを確認してください。"
     );
     console.error("❌ [完了] fetchNotionHours() - 失敗");
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
@@ -677,67 +730,85 @@ function createInvoices() {
  * @returns {File} 作成されたPDFファイルオブジェクト
  */
 function createPdfInDrive(spreadsheet, sheetId, folder, fileName) {
-  console.log("    🔧 PDF生成パラメータを設定中...");
+  console.log("    📄 [開始] PDFを作成してGoogle Driveに保存します");
 
-  // スプレッドシートのIDを取得
-  const spreadsheetId = spreadsheet.getId();
+  try {
+    // --------------------------------------------------------------------------
+    // ▼ STEP 1: PDFエクスポート用のURLを構築 ▼
+    // --------------------------------------------------------------------------
+    // GoogleスプレッドシートをPDFとしてエクスポートするための特別なURLを組み立てます。
+    // このURLにアクセスすると、指定した形式でPDFが生成されます。
+    const spreadsheetId = spreadsheet.getId();
+    const exportUrl =
+      `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?` +
+      "format=pdf" +              // フォーマット: PDF
+      "&gid=" + sheetId +         // 対象シートのID
+      "&size=A4" +                // 用紙サイズ: A4
+      "&portrait=true" +          // 向き: 縦
+      "&scale=3" +                // スケール: 高さに合わせる (推奨)
+      "&top_margin=0.2" +         // 上余白 (インチ)
+      "&bottom_margin=0.2" +      // 下余白 (インチ)
+      "&left_margin=0.2" +        // 左余白 (インチ)
+      "&right_margin=0.2" +       // 右余白 (インチ)
+      "&sheetnames=false" +       // シート名を非表示
+      "&printtitle=false" +       // スプレッドシート名を非表示
+      "&gridlines=false" +        // グリッド線を非表示
+      "&fzr=false" +              // 固定行を無視
+      "&horizontal_alignment=CENTER" + // 水平配置: 中央
+      "&vertical_alignment=TOP";     // 垂直配置: 上
 
-  // PDFエクスポート用のURLを作成
-  // このURLにアクセスすることでスプレッドシートをPDFとしてダウンロードできます
-  const url =
-    `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?` +
-    "format=pdf" + // PDFフォーマットで出力
-    "&gid=" +
-    sheetId + // 対象シートのIDを指定
-    "&size=A4" + // 用紙サイズ: A4 (他: A3, A5, letter, legal など)
-    "&portrait=true" + // 縦向き (false で横向き)
-    "&scale=3" + // スケール設定: 3 = 高さに合わせる（推奨）
-    // スケールオプション:
-    // 1 = 標準（100%）
-    // 2 = 幅に合わせる
-    // 3 = 高さに合わせる ★ おすすめ
-    // 4 = ページに合わせる
-    "&top_margin=0.2" + // 上余白（インチ単位）
-    "&bottom_margin=0.2" + // 下余白（インチ単位）
-    "&left_margin=0.2" + // 左余白（インチ単位）
-    "&right_margin=0.2" + // 右余白（インチ単位）
-    "&sheetnames=false" + // シート名を非表示
-    "&printtitle=false" + // スプレッドシート名を非表示
-    "&gridlines=false" + // グリッド線を非表示
-    "&fzr=false" + // 固定行を無視
-    "&horizontal_alignment=CENTER" + // 水平方向の配置: 中央 (LEFT/CENTER/RIGHT)
-    "&vertical_alignment=TOP"; // 垂直方向の配置: 上 (TOP/MIDDLE/BOTTOM)
+    console.log(`      - PDFエクスポートURLを構築しました。`);
+    // console.log(`      URL: ${exportUrl}`); // デバッグ時にURLを確認したい場合はこの行を有効化
 
-  console.log("    ✓ PDF設定完了（A4、縦向き、高さに合わせる）");
+    // --------------------------------------------------------------------------
+    // ▼ STEP 2: APIリクエストの準備 ▼
+    // --------------------------------------------------------------------------
+    // Googleのサービスにアクセスするための「認証トークン」を取得します。
+    // これにより、スクリプトがユーザーの代わりにGoogle DriveやSpreadsheetを操作する許可を得ます。
+    const token = ScriptApp.getOAuthToken();
 
-  // 認証トークンを取得（Google APIへのアクセスに必要）
-  const token = ScriptApp.getOAuthToken();
+    // APIリクエストに必要な設定（オプション）を定義します。
+    const options = {
+      headers: {
+        // Authorizationヘッダーに認証トークンを設定します。
+        Authorization: "Bearer " + token,
+      },
+      muteHttpExceptions: true, // エラーが発生してもスクリプトを停止させない
+    };
+    console.log("      - APIリクエストのオプションを設定しました。");
 
-  // HTTPリクエストのオプション設定
-  const options = {
-    headers: {
-      Authorization: "Bearer " + token, // 認証ヘッダー
-    },
-    muteHttpExceptions: true, // エラーでも例外を投げずに続行
-  };
+    // --------------------------------------------------------------------------
+    // ▼ STEP 3: PDFデータの取得と保存 ▼
+    // --------------------------------------------------------------------------
+    console.log("      - 📥 PDFデータをダウンロードしています...");
+    // UrlFetchApp.fetch() を使って、エクスポートURLにアクセスし、PDFデータを取得します。
+    const response = UrlFetchApp.fetch(exportUrl, options);
+    const responseCode = response.getResponseCode();
 
-  console.log("    📥 PDFデータをダウンロード中...");
+    if (responseCode === 200) {
+      console.log(`      - ✅ PDFデータのダウンロードに成功しました (ステータスコード: ${responseCode})`);
+      // 取得したPDFデータを「Blob」というバイナリデータ形式に変換し、ファイル名を設定します。
+      const blob = response.getBlob().setName(fileName + ".pdf");
 
-  // PDFデータをダウンロード
-  const response = UrlFetchApp.fetch(url, options);
+      console.log(`      - 💾 PDFをGoogle Driveフォルダ「${folder.getName()}」に保存しています...`);
+      // 指定されたGoogle DriveフォルダにPDFファイルを作成します。
+      const pdfFile = folder.createFile(blob);
+      console.log(`      - ✅ PDFの保存が完了しました: ${pdfFile.getName()}`);
 
-  // レスポンスをBlobオブジェクトに変換してファイル名を設定
-  const blob = response.getBlob().setName(fileName + ".pdf");
-
-  console.log("    💾 Google Driveに保存中...");
-
-  // フォルダにPDFファイルを作成
-  const pdfFile = folder.createFile(blob);
-
-  console.log(`    ✅ PDF保存完了: ${fileName}.pdf`);
-
-  // 作成したPDFファイルを返す（後続処理で使用）
-  return pdfFile;
+      // 作成したPDFファイルを返す
+      return pdfFile;
+    } else {
+      // エラー処理
+      const errorResponse = response.getContentText();
+      console.error(`      - ❌ PDFのダウンロードに失敗しました (ステータスコード: ${responseCode})`);
+      console.error(`      - エラー内容: ${errorResponse}`);
+      throw new Error(`PDFの生成に失敗しました。ステータスコード: ${responseCode}`);
+    }
+  } catch (error) {
+    console.error(`    ❌ PDF作成処理中にエラーが発生しました: ${error.message}`);
+    // エラーを呼び出し元に再スローして、メインの処理で捕捉できるようにします。
+    throw error;
+  }
 }
 
 // ============================================================================
