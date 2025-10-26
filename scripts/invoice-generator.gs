@@ -39,23 +39,11 @@
 // ============================================================================
 // ⚙️ 環境変数 - 最初にここを設定してください！（必須）
 // ============================================================================
-// 【重要】以下の3つの変数は必ず設定する必要があります
+const DATA_SPREADSHEET_ID = "1DkBGmXr-pikyMTxfSE8JJz7bC4puP5VWNTsr4bc9wVM";
 
-// データスプレッドシートのID
-// 取得方法: スプレッドシートのURLから取得
-// 例: https://docs.google.com/spreadsheets/d/【ここがID】/edit
-const DATA_SPREADSHEET_ID = "";
+const TEMPLATE_SPREADSHEET_ID = "1-5wrC7TifKZEY9d-rnPh4cfyrkL3B8al1-yug4GIQTw";
 
-// テンプレートスプレッドシートのID
-// 取得方法: スプレッドシートのURLから取得
-// 例: https://docs.google.com/spreadsheets/d/【ここがID】/edit
-const TEMPLATE_SPREADSHEET_ID = "";
-
-// Notion APIキー
-// 取得方法: https://www.notion.so/my-integrations でインテグレーションを作成
-// 作成後に表示される「Internal Integration Token」をコピー
-const NOTION_API_KEY = "";
-
+const NOTION_API_KEY = "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";
 // ============================================================================
 // 📋 設定セクション
 // ============================================================================
@@ -117,7 +105,8 @@ const TEMPLATE_SHEET_NAME = "Sheet1";
  */
 const EMAIL_ENABLED = true; // メール送信を有効にする
 const TEST_MODE = false; // テストモードを無効にする（本番運用時は false）
-const SENDER_EMAIL = "koki-hata@drox-inc.com"; // 送信者メールアドレス
+const SENDER_EMAIL = "kazuki-kurosu@drox-inc.com"; // 送信者メールアドレス
+// const SENDER_EMAIL = "kazuki-kurosu@drox-inc.com"; // 送信者メールアドレス
 const SENDER_NAME = "株式会社DROX"; // 送信者名
 
 // ============================================================================
