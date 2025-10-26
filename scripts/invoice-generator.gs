@@ -718,7 +718,7 @@ function createInvoices() {
       const recipientName = invoice.seller_name;
 
       if (recipientEmail && recipientEmail.includes("@")) {
-        const emailSent = sendInvoiceEmail(recipientEmail, recipientName, pdfFile, formattedDate);
+        const emailSent = sendInvoiceEmail(recipientEmail, recipientName, pdfFile, formattedDate, startDate, endDate);
 
         if (emailSent) {
           emailsSentCount++;
@@ -885,9 +885,11 @@ function createPdfInDrive(spreadsheet, sheetId, folder, fileName) {
  * @param {string} recipientName - 受信者の名前
  * @param {File} pdfFile - Google DriveのPDFファイルオブジェクト
  * @param {string} invoiceDate - 請求日（YYYY/MM/DD形式）
+ * @param {string} startDate - 対象期間開始日（YYYY-MM-DD形式）
+ * @param {string} endDate - 対象期間終了日（YYYY-MM-DD形式）
  * @returns {boolean} メール送信成功時は true、失敗時は false
  */
-function sendInvoiceEmail(recipientEmail, recipientName, pdfFile, invoiceDate) {
+function sendInvoiceEmail(recipientEmail, recipientName, pdfFile, invoiceDate, startDate, endDate) {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("📧 [開始] メール送信処理");
   console.log(`📬 宛先: ${recipientName} <${recipientEmail}>`);
@@ -909,20 +911,21 @@ function sendInvoiceEmail(recipientEmail, recipientName, pdfFile, invoiceDate) {
     console.log("🔗 PDF共有URLを生成中...");
     const pdfUrl = getPdfShareableUrl(pdfFile);
 
-    // ステップ3: 請求日から年と月を抽出
-    // getMonth()は0-11を返すので+1する必要があります
-    const dateObj = new Date(invoiceDate);
-    const year = dateObj.getFullYear();
-    const month = dateObj.getMonth() + 1;
-    console.log(`✓ 対象期間: ${year}年${month}月`);
+    // ステップ3: 対象期間を月/日形式に変換（例: 09/01 ~ 09/30）
+    const startParts = startDate.split("-");
+    const endParts = endDate.split("-");
+    const startMonthDay = `${startParts[1]}/${startParts[2]}`;
+    const endMonthDay = `${endParts[1]}/${endParts[2]}`;
+    const periodText = `${startMonthDay} ~ ${endMonthDay}`;
+    console.log(`✓ 対象期間: ${periodText}`);
 
     // ステップ4: メールの件名を作成
-    const subject = `請求書送付のご案内 [${year}年${month}月分]`;
+    const subject = `請求書送付のご案内 [${periodText}]`;
     console.log(`✓ 件名: ${subject}`);
 
     // ステップ5: メール本文を作成（HTML形式）
     console.log("✍️ メール本文を作成中...");
-    const body = createEmailBody(recipientName, year, month, pdfUrl);
+    const body = createEmailBody(recipientName, startMonthDay, endMonthDay, pdfUrl);
 
     // ステップ6: メールオプションを設定
     const options = {
@@ -1009,16 +1012,16 @@ function getPdfShareableUrl(pdfFile) {
  * - PDF閲覧用のボタンとリンクを含めます
  *
  * @param {string} recipientName - 受信者の名前（「〜様」を付けて表示）
- * @param {number} year - 請求年
- * @param {number} month - 請求月
+ * @param {string} startMonthDay - 対象期間開始日（MM/DD形式）
+ * @param {string} endMonthDay - 対象期間終了日（MM/DD形式）
  * @param {string} pdfUrl - PDFファイルへのURL
  * @returns {string} HTML形式のメール本文
  */
-function createEmailBody(recipientName, year, month, pdfUrl) {
+function createEmailBody(recipientName, startMonthDay, endMonthDay, pdfUrl) {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("✉️ [開始] メール本文作成");
   console.log(`📝 宛先: ${recipientName}`);
-  console.log(`📅 対象期間: ${year}年${month}月`);
+  console.log(`📅 対象期間: ${startMonthDay} ~ ${endMonthDay}`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   // HTML形式のメール本文を作成
@@ -1033,7 +1036,7 @@ function createEmailBody(recipientName, year, month, pdfUrl) {
       株式会社DROXです。</p>
 
       <!-- 本文 -->
-      <p>${year}年${month}月分の請求書をお送りいたします。<br>
+      <p>${startMonthDay} ~ ${endMonthDay}分の請求書をお送りいたします。<br>
       下記リンクよりご確認ください。</p>
 
       <!-- PDFリンク（ボタン形式） -->
