@@ -1021,9 +1021,12 @@ function createEmailBody(recipientName, year, month, pdfUrl) {
         </a>
       </p>
 
-      <!-- PDFリンク（テキスト形式） -->
-      <p><strong>請求書リンク：</strong><br>
-      <a href="${pdfUrl}" style="color: #0066cc;">${pdfUrl}</a></p>
+      <!-- 確認依頼（目立つ形式） -->
+      <div style="background-color: #FFF3CD; border: 2px solid #FFC107; border-radius: 8px; padding: 20px; margin: 30px 0; text-align: center;">
+        <p style="font-size: 14px; color: #856404; margin: 0;">
+          問題なければ、<strong style="font-size: 18px; color: #D97706;">「OK DROX!」</strong>と返信お願いします。
+        </p>
+      </div>
 
       <!-- 締めの挨拶 -->
       <p style="margin-top: 30px;">
@@ -1037,7 +1040,6 @@ function createEmailBody(recipientName, year, month, pdfUrl) {
       <p style="font-size: 12px; color: #666;">
       株式会社DROX<br>
       ${SENDER_EMAIL}<br>
-      ※このメールは自動送信されています。
       </p>
     </div>
   `;
