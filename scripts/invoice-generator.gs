@@ -579,17 +579,22 @@ function createInvoices() {
     console.log("  ⏰ Notionから作業時間を取得中...");
     let itemNumber = 0; // デフォルトは0時間
 
+    // 日付から月/日形式の項目名を生成（例: システム開発費(10/01 ~ 10/31)）
+    // TODO: 将来的には動的に日付を設定できるようにする
+    const startDate = "2025-10-01";
+    const endDate = "2025-10-31";
+    const startParts = startDate.split("-");
+    const endParts = endDate.split("-");
+    const startMonthDay = `${startParts[1]}/${startParts[2]}`;
+    const endMonthDay = `${endParts[1]}/${endParts[2]}`;
+    const itemName = `システム開発費(${startMonthDay} ~ ${endMonthDay})`;
+
     // notion_user_idの検証
     if (!invoice.notion_user_id || invoice.notion_user_id.trim() === "") {
       console.warn(`  ⚠️ notion_user_idが指定されていません。Notionからのデータ取得をスキップします`);
       console.log(`  ℹ️ 作業時間: 0時間（データなし）`);
     } else {
       try {
-        // TODO: 将来的には動的に日付を設定できるようにする
-        // 現在は固定値を使用
-        const startDate = "2025-10-01";
-        const endDate = "2025-10-31";
-
         console.log(`  📊 対象期間: ${startDate} 〜 ${endDate}`);
         console.log(`  👤 対象ユーザー: ${invoice.seller_name} (ID: ${invoice.notion_user_id})`);
 
@@ -608,6 +613,20 @@ function createInvoices() {
       }
     }
 
+    // 作業時間が0時間の場合は請求書作成をスキップ
+    if (itemNumber === 0) {
+      console.log(`  ⏭️ 作業時間が0時間のため、${invoice.seller_name}の請求書作成をスキップします`);
+
+      // コピーしたシートを削除
+      if (copiedSheet) {
+        spreadsheet.deleteSheet(copiedSheet);
+        console.log(`  🗑️ 作成途中のシート「${copiedSheetName}」を削除しました`);
+      }
+
+      // 次のメンバーへ
+      continue;
+    }
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // ステップ4-4: プレースホルダーを実際のデータに置き換え
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -623,7 +642,7 @@ function createInvoices() {
     console.log("    ✓ 請求先情報");
 
     // 項目詳細を置き換え（Notionまたはスプレッドシートから取得した作業時間を使用）
-    copiedSheet.createTextFinder("{{item_1_name}}").replaceAllWith(invoice.item_1_name);
+    copiedSheet.createTextFinder("{{item_1_name}}").replaceAllWith(itemName);
     copiedSheet.createTextFinder("{{item_1_number}}").replaceAllWith(itemNumber);
     copiedSheet.createTextFinder("{{item_1_price}}").replaceAllWith(invoice.item_1_price);
     console.log("    ✓ 項目詳細");
