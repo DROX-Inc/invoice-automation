@@ -65,16 +65,17 @@ const NOTION_API_KEY = "";
  * データスプレッドシートには以下の列が必要です（順番は自由）：
  *
  * - seller_name: 請求先会社名（例: 株式会社ABC）
+ * - invoice_needed: 請求書生成フラグ（TRUE/FALSE）※TRUEの場合のみ請求書を生成
  * - seller_address: 請求先住所
  * - seller_email: メール送信先アドレス
  * - item_1_name: 項目名（例: コンサルティング業務）
- * - item_1_number: 数量（例: 作業時間）※Notionから自動取得も可能
  * - item_1_price: 単価（例: 時間単価）
  * - seller_bank_name: 銀行名
  * - seller_bank_type: 口座種別（普通/当座）
  * - seller_bank_number: 口座番号
  * - seller_bank_holder_name: 口座名義
  * - output_folder_id: （必須）PDFを保存するGoogle DriveフォルダのID
+ * - notion_user_id: NotionユーザーID（UUID形式）
  *
  * 【自動生成される項目】
  * - 請求日: スクリプト実行時の日付が自動設定されます
@@ -524,6 +525,22 @@ function createInvoices() {
     console.log(`│  請求書 ${index + 1}/${invoiceDataRows.length} の作成を開始                                    │`);
     console.log(`│  宛先: ${invoice.seller_name}                                  `);
     console.log("└────────────────────────────────────────────────────────────┘");
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // ステップ4-0: invoice_neededフラグのチェック
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    console.log("  🔍 請求書生成フラグを確認中...");
+
+    // invoice_neededが明示的にTRUEでない場合はスキップ
+    const invoiceNeeded = String(invoice.invoice_needed).toUpperCase();
+    if (invoiceNeeded !== "TRUE") {
+      skippedCount++;
+      console.log(`  ⊘ 請求書 ${index + 1}: invoice_needed=${invoice.invoice_needed} のためスキップします`);
+      console.log(`  ℹ️ ${invoice.seller_name} の請求書生成は不要と設定されています\n`);
+      return;
+    }
+
+    console.log(`  ✅ invoice_needed=TRUE - 請求書生成を続行します`);
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // ステップ4-1: テンプレートシートをコピーして作業用シートを作成
