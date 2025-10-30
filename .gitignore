@@ -27,6 +27,7 @@ tmp/
 # Personal notes
 notes.md
 TODO.md
+google-spread-sheets/invoice-data-prod.csv
 
 # User data files (contains personal invoice data)
 # google-spread-sheets/invoice-data.csv

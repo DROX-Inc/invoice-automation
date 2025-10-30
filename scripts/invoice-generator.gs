@@ -579,17 +579,22 @@ function createInvoices() {
     console.log("  ⏰ Notionから作業時間を取得中...");
     let itemNumber = 0; // デフォルトは0時間
 
+    // 日付から年/月/日形式の項目名を生成（例: システム開発費(2025/08/01 ~ 2025/08/31)）
+    // TODO: 将来的には動的に日付を設定できるようにする
+    const startDate = "2025-08-01";
+    const endDate = "2025-08-31";
+    const startParts = startDate.split("-");
+    const endParts = endDate.split("-");
+    const startYMD = `${startParts[0]}/${startParts[1]}/${startParts[2]}`;
+    const endYMD = `${endParts[0]}/${endParts[1]}/${endParts[2]}`;
+    const itemName = `システム開発費(${startYMD} ~ ${endYMD})`;
+
     // notion_user_idの検証
     if (!invoice.notion_user_id || invoice.notion_user_id.trim() === "") {
       console.warn(`  ⚠️ notion_user_idが指定されていません。Notionからのデータ取得をスキップします`);
       console.log(`  ℹ️ 作業時間: 0時間（データなし）`);
     } else {
       try {
-        // TODO: 将来的には動的に日付を設定できるようにする
-        // 現在は固定値を使用
-        const startDate = "2025-10-01";
-        const endDate = "2025-10-31";
-
         console.log(`  📊 対象期間: ${startDate} 〜 ${endDate}`);
         console.log(`  👤 対象ユーザー: ${invoice.seller_name} (ID: ${invoice.notion_user_id})`);
 
@@ -608,6 +613,23 @@ function createInvoices() {
       }
     }
 
+    // 作業時間が0時間の場合は請求書作成をスキップ
+    if (itemNumber === 0) {
+      console.log(`  ⏭️ 作業時間が0時間のため、${invoice.seller_name}の請求書作成をスキップします`);
+
+      // コピーしたシートを削除
+      if (copiedSheet) {
+        templateSpreadsheet.deleteSheet(copiedSheet);
+        console.log(`  🗑️ 作成途中のシート「${newSheetName}」を削除しました`);
+      }
+
+      skippedCount++;
+      console.log("└────────────────────────────────────────────────────────────┘\n");
+
+      // 次のメンバーへ（forEachではreturnでスキップ）
+      return;
+    }
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // ステップ4-4: プレースホルダーを実際のデータに置き換え
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -623,7 +645,7 @@ function createInvoices() {
     console.log("    ✓ 請求先情報");
 
     // 項目詳細を置き換え（Notionまたはスプレッドシートから取得した作業時間を使用）
-    copiedSheet.createTextFinder("{{item_1_name}}").replaceAllWith(invoice.item_1_name);
+    copiedSheet.createTextFinder("{{item_1_name}}").replaceAllWith(itemName);
     copiedSheet.createTextFinder("{{item_1_number}}").replaceAllWith(itemNumber);
     copiedSheet.createTextFinder("{{item_1_price}}").replaceAllWith(invoice.item_1_price);
     console.log("    ✓ 項目詳細");
@@ -696,7 +718,7 @@ function createInvoices() {
       const recipientName = invoice.seller_name;
 
       if (recipientEmail && recipientEmail.includes("@")) {
-        const emailSent = sendInvoiceEmail(recipientEmail, recipientName, pdfFile, formattedDate);
+        const emailSent = sendInvoiceEmail(recipientEmail, recipientName, pdfFile, formattedDate, startDate, endDate);
 
         if (emailSent) {
           emailsSentCount++;
@@ -863,9 +885,11 @@ function createPdfInDrive(spreadsheet, sheetId, folder, fileName) {
  * @param {string} recipientName - 受信者の名前
  * @param {File} pdfFile - Google DriveのPDFファイルオブジェクト
  * @param {string} invoiceDate - 請求日（YYYY/MM/DD形式）
+ * @param {string} startDate - 対象期間開始日（YYYY-MM-DD形式）
+ * @param {string} endDate - 対象期間終了日（YYYY-MM-DD形式）
  * @returns {boolean} メール送信成功時は true、失敗時は false
  */
-function sendInvoiceEmail(recipientEmail, recipientName, pdfFile, invoiceDate) {
+function sendInvoiceEmail(recipientEmail, recipientName, pdfFile, invoiceDate, startDate, endDate) {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("📧 [開始] メール送信処理");
   console.log(`📬 宛先: ${recipientName} <${recipientEmail}>`);
@@ -887,20 +911,21 @@ function sendInvoiceEmail(recipientEmail, recipientName, pdfFile, invoiceDate) {
     console.log("🔗 PDF共有URLを生成中...");
     const pdfUrl = getPdfShareableUrl(pdfFile);
 
-    // ステップ3: 請求日から年と月を抽出
-    // getMonth()は0-11を返すので+1する必要があります
-    const dateObj = new Date(invoiceDate);
-    const year = dateObj.getFullYear();
-    const month = dateObj.getMonth() + 1;
-    console.log(`✓ 対象期間: ${year}年${month}月`);
+    // ステップ3: 対象期間を年/月/日形式に変換（例: 2025/08/01 ~ 2025/08/31）
+    const startParts = startDate.split("-");
+    const endParts = endDate.split("-");
+    const startYMD = `${startParts[0]}/${startParts[1]}/${startParts[2]}`;
+    const endYMD = `${endParts[0]}/${endParts[1]}/${endParts[2]}`;
+    const periodText = `${startYMD} ~ ${endYMD}`;
+    console.log(`✓ 対象期間: ${periodText}`);
 
     // ステップ4: メールの件名を作成
-    const subject = `請求書送付のご案内 [${year}年${month}月分]`;
+    const subject = `請求書送付のご案内 [${periodText}]`;
     console.log(`✓ 件名: ${subject}`);
 
     // ステップ5: メール本文を作成（HTML形式）
     console.log("✍️ メール本文を作成中...");
-    const body = createEmailBody(recipientName, year, month, pdfUrl);
+    const body = createEmailBody(recipientName, startYMD, endYMD, pdfUrl);
 
     // ステップ6: メールオプションを設定
     const options = {
@@ -987,16 +1012,16 @@ function getPdfShareableUrl(pdfFile) {
  * - PDF閲覧用のボタンとリンクを含めます
  *
  * @param {string} recipientName - 受信者の名前（「〜様」を付けて表示）
- * @param {number} year - 請求年
- * @param {number} month - 請求月
+ * @param {string} startYMD - 対象期間開始日（YYYY/MM/DD形式）
+ * @param {string} endYMD - 対象期間終了日（YYYY/MM/DD形式）
  * @param {string} pdfUrl - PDFファイルへのURL
  * @returns {string} HTML形式のメール本文
  */
-function createEmailBody(recipientName, year, month, pdfUrl) {
+function createEmailBody(recipientName, startYMD, endYMD, pdfUrl) {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("✉️ [開始] メール本文作成");
   console.log(`📝 宛先: ${recipientName}`);
-  console.log(`📅 対象期間: ${year}年${month}月`);
+  console.log(`📅 対象期間: ${startYMD} ~ ${endYMD}`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   // HTML形式のメール本文を作成
@@ -1011,19 +1036,22 @@ function createEmailBody(recipientName, year, month, pdfUrl) {
       株式会社DROXです。</p>
 
       <!-- 本文 -->
-      <p>${year}年${month}月分の請求書をお送りいたします。<br>
+      <p>${startYMD} ~ ${endYMD}分の請求書をお送りいたします。<br>
       下記リンクよりご確認ください。</p>
 
       <!-- PDFリンク（ボタン形式） -->
       <p style="margin: 20px 0;">
-        <a href="${pdfUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+        <a href="${pdfUrl}" style="background-color: #2563EB; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 500;">
           請求書を確認する
         </a>
       </p>
 
-      <!-- PDFリンク（テキスト形式） -->
-      <p><strong>請求書リンク：</strong><br>
-      <a href="${pdfUrl}" style="color: #0066cc;">${pdfUrl}</a></p>
+      <!-- 確認依頼（目立つ形式） -->
+      <div style="background-color: #EFF6FF; border: 2px solid #3B82F6; border-radius: 8px; padding: 20px; margin: 30px 0; text-align: center;">
+        <p style="font-size: 14px; color: #1E40AF; margin: 0;">
+          問題なければ、<strong style="font-size: 18px; color: #1D4ED8;">「OK DROX!」</strong>と返信お願いします。
+        </p>
+      </div>
 
       <!-- 締めの挨拶 -->
       <p style="margin-top: 30px;">
@@ -1037,7 +1065,6 @@ function createEmailBody(recipientName, year, month, pdfUrl) {
       <p style="font-size: 12px; color: #666;">
       株式会社DROX<br>
       ${SENDER_EMAIL}<br>
-      ※このメールは自動送信されています。
       </p>
     </div>
   `;
